@@ -1,7 +1,8 @@
 # =============================================================================
 # 04_ma_analysis.R
-# Massachusetts-specific analysis: subset the national DLR cohort to MA
-# residents and replicate Q1–Q3 estimates for the DLR-affected population.
+# Massachusetts-specific analysis: subset to MA residents with dental
+# insurance at any point in 2023 (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
+# and replicate Q1–Q3 estimates.
 #
 # PREREQUISITE: Requires the MEPS restricted-use file, which includes STATECD
 # (state of residence). The public-use FYC file does not contain state
@@ -18,6 +19,7 @@
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
+source(here::here("R", "config.R"))
 
 # =============================================================================
 # Configuration
@@ -49,10 +51,14 @@ if (!has_state) {
   )
 }
 
-message("Creating MA + DLR subpopulation (", state_var, " == 25 & DVTPRV23 > 0)...")
+message("Creating MA + DLR subpopulation (",
+        state_var, " == 25 & (DNTINS31_M23 == 1 | DNTINS23_M23 == 1))...")
 
+# Eligibility filter: MA residents with dental insurance at any point in 2023.
+# OR of two round-specific flags covers the full year — see 02_survey_design.R.
 design_ma_dlr <- subset(design_full,
-                        design_full$variables[[state_var]] == 25 & DVTPRV23 > 0)
+                        design_full$variables[[state_var]] == 25 &
+                          (DNTINS31_M23 == 1 | DNTINS23_M23 == 1))
 
 ma_n        <- nrow(design_ma_dlr$variables)
 ma_weighted <- round(sum(design_ma_dlr$variables$PERWT23F))

@@ -9,8 +9,8 @@
 # Q3: What was the mix of dental services utilized?
 #
 # This is a national-level dummy analysis using the full U.S. DLR cohort
-# (DVTPRV23 > 0). MA-specific analysis will be in a separate script once
-# the restricted-use file with STATECD is available.
+# (DNTINS31_M23 == 1 | DNTINS23_M23 == 1). MA-specific analysis will be in a separate script
+# once the restricted-use file with STATECD is available.
 #
 # NOTE: "dummy" = baseline analysis on 2023 data only. The full pre-post
 # analysis requires 2024 data. These results verify the pipeline end-to-end.
@@ -26,6 +26,7 @@
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
+source(here::here("R", "config.R"))
 
 dir.create(here("output"), showWarnings = FALSE)
 
@@ -85,6 +86,8 @@ message("  Saved: output/q2_spending.csv")
 # =============================================================================
 # Link the dental visits file to the DLR cohort via DUPERSID, then compute
 # the proportion of visits where each procedure type was performed.
+# DLR cohort: had dental insurance in 2023 (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
+# — see 02_survey_design.R for full rationale.
 
 message("\nQ3: Dental service mix...")
 
@@ -164,6 +167,51 @@ p_mix <- service_props |>
 ggsave(here("output", "service_mix.png"), p_mix,
        width = 8, height = 5, dpi = 150)
 message("  Saved: output/service_mix.png")
+
+# =============================================================================
+# Covariate-adjusted models (a priori and extended covariate sets)
+# =============================================================================
+# Formulas are defined in config.R. update() attaches the outcome to the
+# pre-built right-hand side so the covariate list stays in one place.
+
+message("\nFitting covariate-adjusted models...")
+
+# Q1 adjusted — dental visit frequency
+fit_q1_apriori  <- svyglm(update(formula_apriori,  DVTOT23 ~ .),
+                           design = design_dlr, family = gaussian())
+fit_q1_extended <- svyglm(update(formula_extended, DVTOT23 ~ .),
+                           design = design_dlr, family = gaussian())
+
+# Q2a adjusted — total dental expenditures (log)
+fit_q2a_apriori  <- svyglm(update(formula_apriori,  log(DVTEXP23 + 1) ~ .),
+                            design = design_dlr, family = gaussian())
+fit_q2a_extended <- svyglm(update(formula_extended, log(DVTEXP23 + 1) ~ .),
+                            design = design_dlr, family = gaussian())
+
+# Q2b adjusted — out-of-pocket expenditures (log)
+fit_q2b_apriori  <- svyglm(update(formula_apriori,  log(DVTSLF23 + 1) ~ .),
+                            design = design_dlr, family = gaussian())
+fit_q2b_extended <- svyglm(update(formula_extended, log(DVTSLF23 + 1) ~ .),
+                            design = design_dlr, family = gaussian())
+
+# Tidy and save each pair
+model_pairs <- list(
+  list(apriori = fit_q1_apriori,  extended = fit_q1_extended,
+       name = "q1_visits"),
+  list(apriori = fit_q2a_apriori, extended = fit_q2a_extended,
+       name = "q2a_total_spend"),
+  list(apriori = fit_q2b_apriori, extended = fit_q2b_extended,
+       name = "q2b_oop_spend")
+)
+
+for (m in model_pairs) {
+  out <- bind_rows(
+    broom::tidy(m$apriori,  conf.int = TRUE) |> mutate(covariate_set = "apriori"),
+    broom::tidy(m$extended, conf.int = TRUE) |> mutate(covariate_set = "extended")
+  )
+  write_csv(out, here("output", paste0(m$name, "_adjusted.csv")))
+  message("  Saved: output/", m$name, "_adjusted.csv")
+}
 
 # =============================================================================
 # Descriptive Table 1 — analytic cohort

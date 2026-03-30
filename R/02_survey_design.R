@@ -11,7 +11,8 @@
 #
 # Two design objects are saved:
 #   design_full — full national MEPS sample (all respondents)
-#   design_dlr  — national DLR cohort: DVTPRV23 > 0 (used private dental insurance)
+#   design_dlr  — national DLR cohort: had dental insurance at any point in 2023
+#                 (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
 #
 # MA-specific design objects are built in a separate script (04_ma_analysis.R)
 # once the restricted-use file with STATECD is available.
@@ -55,19 +56,36 @@ message("  Full design: ",
         "Weighted N: ", format(round(sum(fyc$PERWT23F)), big.mark = ","))
 
 # =============================================================================
-# 3. DLR cohort: DVTPRV23 > 0
+# 3. DLR cohort: DNTINS31_M23 == 1 | DNTINS23_M23 == 1
 # =============================================================================
-# Restricts to individuals whose dental care was paid at least partly by
-# private insurance — the population proxied as DLR-affected.
+# Restricts to individuals who had dental insurance at any point in 2023.
 #
-# LIMITATION: MEPS does not distinguish self-insured (ERISA; state-exempt)
-# from fully-insured plans. Both have DVTPRV23 > 0. Self-insured plan holders
-# are misclassified as DLR-affected, attenuating all estimates toward null.
-# All results should be interpreted as intention-to-treat.
+# MEPS collects insurance data across multiple interview rounds within a year.
+# Two dental insurance variables cover complementary windows:
+#   DNTINS31_M23 — dental insurance at any time in Round 3 / Period 1 (early 2023)
+#   DNTINS23_M23 — dental insurance at any time in R5/R3 through 12/31/2023 (later 2023)
+# Using OR captures anyone with dental coverage during any part of the year,
+# consistent with how MEPS constructs its own full-year insurance summaries.
+#
+# WHY DENTAL-SPECIFIC VARIABLES INSTEAD OF DVTPRV23 > 0:
+# Using DVTPRV23 > 0 (private insurance paid for dental care) conditions on
+# the outcome — it excludes dentally-insured people who didn't go to the
+# dentist, which is exactly the group where the DLR law may have had an effect.
+# That would bias the sample toward dental users and make it impossible to
+# detect whether the law increased utilization from zero.
+# DNTINS variables define eligibility by coverage status, not utilization.
+#
+# DVTPRV23 remains in the data as an outcome variable (did private insurance
+# pay anything? how much?) — it is not used for sample selection.
+#
+# LIMITATION: MEPS does not distinguish self-insured (ERISA-exempt) from
+# fully-insured dental plans. Self-insured plan holders are not subject to
+# the MA DLR mandate. All estimates are intention-to-treat and likely
+# attenuated toward null.
 
-message("Creating DLR cohort subpopulation (DVTPRV23 > 0)...")
+message("Creating DLR cohort subpopulation (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)...")
 
-design_dlr <- subset(design_full, DVTPRV23 > 0)
+design_dlr <- subset(design_full, DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
 
 dlr_n        <- nrow(design_dlr$variables)
 dlr_weighted <- round(sum(design_dlr$variables$PERWT23F))
