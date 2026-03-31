@@ -71,9 +71,9 @@ R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → outp
 
 ## Data setup
 
-Download .ssp files from AHRQ and place them in `data/`:
-- `h251.ssp` — HC-251 Full-Year Consolidated 2023
-- `h248b.ssp` — HC-248B Dental Visits 2023
+Download **Stata format** (.dta) files from AHRQ and place them in `data/`:
+- `h251.dta` — HC-251 Full-Year Consolidated 2023
+- `h248b.dta` — HC-248B Dental Visits 2023
 
 Update filenames in `01_download_data.R` if yours differ.
 
