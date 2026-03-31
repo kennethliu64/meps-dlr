@@ -247,7 +247,7 @@ tbl_models <- tbl_merge(
   )
 ) |>
   modify_caption(paste0(
-    "**Covariate-adjusted models (2023 baseline) — ", label, "**<br>",
+    "**Covariate-adjusted models — ", label, "**<br>",
     "OR = odds ratio; IRR = incidence rate ratio; ",
     "log \u03b2 = coefficient on log(y+1) scale."
   )) |>
@@ -281,7 +281,7 @@ q1_gt <- tibble(
 ) |>
   gt() |>
   tab_header(title = "Q1: Dental visit access and frequency") |>
-  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in 2023.")
+  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in the survey year.")
 
 q2_gt <- tibble(
   Outcome = c("Total expenditures", "Out-of-pocket", "Insurer payout"),
