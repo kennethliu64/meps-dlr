@@ -34,4 +34,8 @@ invisible(lapply(required_packages, function(pkg) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }))
 
+dir.create(here::here("data"),   showWarnings = FALSE)
+dir.create(here::here("output"), showWarnings = FALSE)
+
 message("Setup complete. All packages loaded. R version: ", R.version$version.string)
+message("data/ and output/ directories ready.")
