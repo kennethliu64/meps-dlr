@@ -27,7 +27,7 @@ Research questions:
 | `PERWT23F` | Person-level analysis weight | HC-251 |
 | `VARSTR` | Variance stratum | HC-251 |
 | `VARPSU` | Variance PSU | HC-251 |
-| `EXAMEX`–`ORTHDONX` | Procedure type flags (Q3 outcomes) | HC-248B |
+| `EXAMINEX`–`ORTHDONX` | Procedure type flags (Q3 outcomes) | HC-248B |
 
 ## DLR cohort filter
 

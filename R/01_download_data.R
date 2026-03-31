@@ -45,6 +45,10 @@ message("  Rows: ", nrow(fyc_raw), " | Cols: ", ncol(fyc_raw))
 # Convert all variable names to uppercase for consistent access
 names(fyc_raw) <- toupper(names(fyc_raw))
 
+# Strip haven labels — Stata imports carry labelled types that cause warnings
+# in gtsummary and other packages; convert to plain R vectors
+fyc_raw <- haven::zap_labels(fyc_raw)
+
 # ---- Sanity checks on key variables ----------------------------------------
 
 required_fyc_vars <- c(
@@ -86,14 +90,15 @@ dv_raw <- haven::read_dta(local_dv_path)
 message("  Rows: ", nrow(dv_raw), " | Cols: ", ncol(dv_raw))
 
 names(dv_raw) <- toupper(names(dv_raw))
+dv_raw <- haven::zap_labels(dv_raw)
 
 # ---- Check for procedure-type variables ------------------------------------
 
 procedure_vars <- c(
   "DUPERSID",
-  "EXAMEX", "XRAYX", "CLNNGX", "FLRIDEX", "SEALNTX",
-  "FILLNGX", "CROWNX", "ROOTCAX", "EXTRACTX", "IMPLNTX",
-  "BRIDGEX", "DENTURX", "ORTHDONX"
+  "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
+  "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
+  "BRIDGESX", "DENTPROX", "DENTOTHX", "ORTHDONX"
 )
 
 missing_dv <- setdiff(procedure_vars, names(dv_raw))
