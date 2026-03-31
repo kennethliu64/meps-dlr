@@ -380,11 +380,15 @@ tbl <- design_analysis |>
     include    = all_of(table_vars),
     statistic  = list(
       all_continuous()  ~ "{mean} ({sd})",
-      all_categorical() ~ "{n_unweighted} ({p}%)"
+      all_categorical() ~ "{n} ({p}%)"
     ),
     missing = "ifany"
   ) |>
   modify_caption(paste0("**Table 1. Cohort characteristics (survey-weighted) — ", label, "**")) |>
+  modify_footnote(all_stat_cols() ~ paste0(
+    "Weighted population counts and percentages. ",
+    "Unweighted n\u2009=\u2009", format(dlr_n, big.mark = ","), "."
+  )) |>
   bold_labels()
 
 tbl |>
