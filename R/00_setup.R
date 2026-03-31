@@ -25,7 +25,7 @@ newly_installed <- required_packages[
 
 if (length(newly_installed) > 0) {
   message("Installing missing packages: ", paste(newly_installed, collapse = ", "))
-  install.packages(newly_installed[newly_installed != "MEPS"], dependencies = TRUE)
+  install.packages(newly_installed, dependencies = TRUE)
 }
 
 # ---- Load all packages ------------------------------------------------------
