@@ -42,6 +42,9 @@ var_povcat  <- paste0("POVCAT", yr)        # poverty category (factor covariate)
 var_insurc  <- paste0("INSURC", yr)        # any insurance coverage (Table 1)
 var_dntins1 <- paste0("DNTINS31_M", yr)   # dental insurance eligibility filter (part 1)
 var_dntins2 <- paste0("DNTINS23_M", yr)   # dental insurance eligibility filter (part 2)
+# Allow overrides from run_all.R when auto-derived names don't match the file
+if (exists("dntins1_override")) var_dntins1 <- dntins1_override
+if (exists("dntins2_override")) var_dntins2 <- dntins2_override
 
 # =============================================================================
 # Intermediate file paths (derived from year)

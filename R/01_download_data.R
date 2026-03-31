@@ -42,22 +42,33 @@ fyc_raw <- haven::zap_labels(fyc_raw)
 
 # ---- Sanity checks on key variables ----------------------------------------
 
-required_fyc_vars <- c(
-  var_dntins1,  # Dental insurance eligibility filter (part 1)
-  var_dntins2,  # Dental insurance eligibility filter (part 2)
-  var_prvexp,   # Private insurance dental payments (outcome)
-  var_visits,   # Total dental visits (Q1 outcome)
-  var_totexp,   # Total dental expenditures (Q2 outcome)
-  var_oopexp,   # Out-of-pocket dental expenditures (Q2 outcome)
-  var_weight,   # Person-level analysis weight
-  "VARSTR",     # Variance stratum
-  "VARPSU",     # Variance PSU
-  "DUPERSID"    # Person identifier (links to event files)
-)
+# ---- Core variables (must exist — not year-specific in name) ---------------
+required_core_vars <- c(var_prvexp, var_visits, var_totexp, var_oopexp,
+                        var_weight, "VARSTR", "VARPSU", "DUPERSID")
+missing_core <- setdiff(required_core_vars, names(fyc_raw))
+if (length(missing_core) > 0) {
+  stop("Core variables missing from FYC file: ", paste(missing_core, collapse = ", "))
+}
 
-missing_fyc <- setdiff(required_fyc_vars, names(fyc_raw))
-if (length(missing_fyc) > 0) {
-  stop("Required variables missing from FYC file: ", paste(missing_fyc, collapse = ", "))
+# ---- Dental insurance filter variables (names vary by panel year) ----------
+# The pipeline auto-derives these from `year`. If they're not found, scan the
+# file for all DNTINS* variables so the user can set the correct overrides.
+missing_dntins <- setdiff(c(var_dntins1, var_dntins2), names(fyc_raw))
+if (length(missing_dntins) > 0) {
+  found_dntins <- sort(grep("^DNTINS", names(fyc_raw), value = TRUE))
+  message("\n  ERROR: Dental insurance filter variables not found:")
+  message("    Looking for: ", var_dntins1, ", ", var_dntins2)
+  message("    Missing:     ", paste(missing_dntins, collapse = ", "))
+  if (length(found_dntins) > 0) {
+    message("\n  DNTINS* variables found in this file:")
+    message("    ", paste(found_dntins, collapse = "\n    "))
+    message("\n  To fix: uncomment and set dntins1_override / dntins2_override")
+    message("  in run_all.R using the variable names shown above, then re-run.")
+  } else {
+    message("\n  No DNTINS* variables found in this file at all.")
+    message("  Check that you have the correct FYC file and codebook.")
+  }
+  stop("Dental insurance filter variables missing. See messages above.")
 }
 message("  All required variables present.")
 
