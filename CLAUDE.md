@@ -102,9 +102,4 @@ Access as a formula via `formula_apriori`. Attach an outcome with `update(formul
 When HC-252 (2024 FYC) is released:
 1. Update local file paths in `01_download_data.R` to the new .ssp filenames
 2. Update weight variable: `PERWT23F` → `PERWT24F` in `02_survey_design.R`
-3. Stack 2023 + 2024 data and activate the DiD model structure (see scaffold in a future
-   `04_did_models.R` script)
-
-## A priori covariate set (per research design doc)
-
-`AGE23X`, `SEX`, `RACEV2X`, `POVCAT23`, `EMPST53` + survey design variables.
+3. Stack 2023 + 2024 data and activate the DiD model structure
