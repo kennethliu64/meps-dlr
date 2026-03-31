@@ -3,12 +3,20 @@
 # Load MEPS HC-251 (Full-Year Consolidated, 2023) and HC-248B (Dental Visits,
 # 2023) from local Stata (.dta) files.
 #
-# Download the files yourself from AHRQ:
-#   HC-251:  https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp
-#   HC-248B: same site, search for "Dental Visits" under 2023 event files
+# Download the files from AHRQ and unzip into data/:
 #
-# Select "Data File, Stata format" (.dta inside a .zip). Unzip and place the
-# .dta files in the data/ folder. Update filenames below if yours differ.
+#   HC-251  (Full-Year Consolidated 2023):
+#     Data:      https://meps.ahrq.gov/data_files/pufs/h251/h251dta.zip
+#     Codebook:  https://meps.ahrq.gov/data_files/pufs/h251/h251cb.pdf
+#     Docs:      https://meps.ahrq.gov/data_stats/download_data/pufs/h251/h251doc.pdf
+#
+#   HC-248B (Dental Visits 2023):
+#     Data:      https://meps.ahrq.gov/data_files/pufs/h248b/h248bdta.zip
+#     Codebook:  https://meps.ahrq.gov/data_files/pufs/h248b/h248bcb.pdf
+#     Docs:      https://meps.ahrq.gov/data_stats/download_data/pufs/h248b/h248bdoc.pdf
+#
+# Each zip contains a single .dta file. Place them in data/ and update the
+# filenames below if yours differ.
 #
 # To update for 2024: swap filenames and update variable suffixes throughout.
 #

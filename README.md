@@ -25,8 +25,14 @@ any point in 2023 (`DNTINS31_M23 == 1 | DNTINS23_M23 == 1`).
 | HC-251 | FYC 2023 | Full-Year Consolidated Person-Level File |
 | HC-248B | DV 2023 | Dental Visits Event-Level File |
 
-Download **Stata format** (`.dta`) files from [AHRQ](https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp),
-unzip, and place the `.dta` files in `data/`. Update filenames in `R/01_download_data.R` if yours differ.
+Download the **Stata format** (`.dta`) zip files from AHRQ, unzip, and place the `.dta` files in `data/`:
+
+| File | Data | Codebook |
+|------|------|----------|
+| HC-251 | [h251dta.zip](https://meps.ahrq.gov/data_files/pufs/h251/h251dta.zip) | [h251cb.pdf](https://meps.ahrq.gov/data_files/pufs/h251/h251cb.pdf) |
+| HC-248B | [h248bdta.zip](https://meps.ahrq.gov/data_files/pufs/h248b/h248bdta.zip) | [h248bcb.pdf](https://meps.ahrq.gov/data_files/pufs/h248b/h248bcb.pdf) |
+
+Update filenames in `R/01_download_data.R` if yours differ.
 
 ## Setup
 
