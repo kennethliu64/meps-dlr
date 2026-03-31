@@ -99,9 +99,9 @@ message("\nQ3: Dental service mix...")
 dlr_ids <- unique(analytic$DUPERSID)
 
 procedure_vars <- c(
-  "EXAMEX", "XRAYX", "CLNNGX", "FLRIDEX", "SEALNTX",
-  "FILLNGX", "CROWNX", "ROOTCAX", "EXTRACTX", "IMPLNTX",
-  "BRIDGEX", "DENTURX", "ORTHDONX"
+  "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
+  "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
+  "BRIDGESX", "DENTPROX", "DENTOTHX", "ORTHDONX"
 )
 
 existing_proc_vars <- intersect(procedure_vars, names(dv_raw))
@@ -130,18 +130,19 @@ message("  Saved: ", out_path("q3_service_mix.csv"))
 # ---- Bar chart of service mix -----------------------------------------------
 
 service_labels <- c(
-  EXAMEX   = "Examination",
-  XRAYX    = "X-ray",
-  CLNNGX   = "Cleaning",
-  FLRIDEX  = "Fluoride",
-  SEALNTX  = "Sealant",
-  FILLNGX  = "Filling",
-  CROWNX   = "Crown",
-  ROOTCAX  = "Root canal",
-  EXTRACTX = "Extraction",
-  IMPLNTX  = "Implant",
-  BRIDGEX  = "Bridge",
-  DENTURX  = "Denture",
+  EXAMINEX = "Examination",
+  JUSTXRYX = "X-ray",
+  CLENTETX = "Cleaning",
+  FLUORIDX = "Fluoride",
+  SEALANTX = "Sealant",
+  FILLINGX = "Filling",
+  ROOTCANX = "Root canal",
+  GUMSURGX = "Gum surgery",
+  ORALSURX = "Oral surgery/extraction",
+  IMPLANTX = "Implant",
+  BRIDGESX = "Bridge",
+  DENTPROX = "Dental prosthesis",
+  DENTOTHX = "Other dental",
   ORTHDONX = "Orthodontics"
 )
 
