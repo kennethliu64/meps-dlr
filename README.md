@@ -94,12 +94,21 @@ already contain only that state's respondents — no filtering needed.
 
 ## Updating for 2024
 
-When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released:
-1. Update local file paths in `01_download_data.R` to the new `.dta` filenames
-2. Update weight: `PERWT23F` → `PERWT24F` in `02_survey_design.R`
-3. Update dental insurance filter variables (`DNTINS31_M23`/`DNTINS23_M23` → 2024 equivalents) in `02_survey_design.R` and `03_analysis.R`
-4. Update all outcome variable suffixes `23` → `24` in `03_analysis.R`
-5. Stack years and activate the DiD scaffold
+When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit the
+three lines at the top of `run_all.R`:
+
+```r
+year     <- 2024L
+fyc_file <- "h252.dta"   # update to actual FYC filename
+dv_file  <- "h249b.dta"  # update to actual dental visits filename
+```
+
+All variable names, file paths, and output labels derive from `year` automatically
+via `R/config.R`. No other files need editing for a standard year update.
+
+> **Note on dental insurance filter variables**: The `DNTINS` variable naming
+> pattern (`DNTINS31_M{yr}` / `DNTINS23_M{yr}`) has been stable across recent
+> panel years. Verify against the 2024 codebook before running.
 
 ## Limitations
 

@@ -90,11 +90,17 @@ R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → outp
 
 ## Data setup
 
-Download **Stata format** (.dta) files from AHRQ and place them in `data/`:
-- `h251.dta` — HC-251 Full-Year Consolidated 2023
-- `h248b.dta` — HC-248B Dental Visits 2023
+Download **Stata format** (.dta) files from AHRQ and place them in `data/`.
+Set the filenames and year in the three-line config block at the top of `run_all.R`:
 
-Update filenames in `01_download_data.R` if yours differ.
+```r
+year     <- 2023L
+fyc_file <- "h251.dta"   # HC-251 Full-Year Consolidated 2023
+dv_file  <- "h248b.dta"  # HC-248B Dental Visits 2023
+```
+
+All variable names, file paths, and output labels are derived automatically from
+`year` by `config.R`. No other files need editing when changing the survey year.
 
 ## Switching between national and state-level data
 
@@ -106,13 +112,13 @@ already contain only that state's respondents — no state-code filtering is nee
 
 ## Covariate set (defined in config.R)
 
-| Variable | Type | Reference level |
-|----------|------|----------------|
-| `AGE23X` | Continuous | — |
-| `SEX` | Factor | Male |
-| `RACEV2X` | Factor | White |
-| `POVCAT23` | Factor | Poor |
-| `EMPST53` | Factor | Employed |
+| Config variable | MEPS name (2023) | Type | Reference level |
+|----------------|-----------------|------|----------------|
+| `var_age` | `AGE23X` | Continuous | — |
+| `SEX` | `SEX` | Factor | Male |
+| `RACEV2X` | `RACEV2X` | Factor | White |
+| `var_povcat` | `POVCAT23` | Factor | Poor |
+| `EMPST53` | `EMPST53` | Factor | Employed |
 
 Factors are coded in `02_survey_design.R` before the design object is built; the
 reference levels above are the first level of each factor (R default).
@@ -121,11 +127,11 @@ Access as a formula via `formula_apriori`. Attach an outcome with `update(formul
 
 ## Model choices
 
-| Outcome | Model family | Rationale |
-|---------|-------------|-----------|
-| `I(DVTOT23 > 0)` (any visit, Q1) | `quasibinomial()` | Binary; estimates probability of any dental contact |
-| `DVTOT23` (visit count, Q1) | `quasipoisson()` | Count; Poisson log-link avoids negative predictions; quasi accounts for overdispersion |
-| `DVTEXP23`, `DVTSLF23`, `DVTPRV23` (spending, Q2) | `gaussian()` on `log(y + 1)` | Common approximation for right-skewed spending; the +1 shift handles zeros but makes coefficients harder to interpret in dollar terms |
+| Outcome (config var) | MEPS name (2023) | Model family | Rationale |
+|---------------------|-----------------|-------------|-----------|
+| `I(var_visits > 0)` (any visit, Q1) | `DVTOT23` | `quasibinomial()` | Binary; estimates probability of any dental contact |
+| `var_visits` (visit count, Q1) | `DVTOT23` | `quasipoisson()` | Count; Poisson log-link avoids negative predictions; quasi accounts for overdispersion |
+| `var_totexp`, `var_oopexp`, `var_prvexp` (spending, Q2) | `DVTEXP23`, `DVTSLF23`, `DVTPRV23` | `gaussian()` on `log(y + 1)` | Common approximation for right-skewed spending; the +1 shift handles zeros but makes coefficients harder to interpret in dollar terms |
 
 **Current adjusted models are baseline description only.** The `svyglm` models in
 `03_analysis.R` estimate covariate-outcome associations with no treatment variable —
@@ -134,9 +140,20 @@ difference-in-differences treatment indicator replaces this structure.
 
 ## Updating for 2024
 
-When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released:
-1. Update local file paths in `01_download_data.R` to the new .dta filenames
-2. Update weight variable: `PERWT23F` → `PERWT24F` in `02_survey_design.R`
-3. Update dental insurance filter variables: `DNTINS31_M23`/`DNTINS23_M23` → 2024 equivalents in `02_survey_design.R` and `03_analysis.R` (verify names against HC-252 codebook)
-4. Update all outcome variable suffixes `23` → `24` throughout `03_analysis.R`
-5. Stack 2023 + 2024 data and activate the DiD model structure
+When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit
+the three-line config block at the top of `run_all.R`:
+
+```r
+year     <- 2024L
+fyc_file <- "h252.dta"
+dv_file  <- "h249b.dta"
+```
+
+All variable names, paths, and output labels derive from `year` automatically.
+No other files need editing for a standard year update.
+
+> **Verify dental insurance filter variables**: The pattern in `config.R` is
+> `DNTINS31_M{yr}` / `DNTINS23_M{yr}`. Check against the HC-252 codebook before running.
+
+After running both years separately, stack 2023 + 2024 data and activate the DiD
+model structure.
