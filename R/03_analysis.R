@@ -15,12 +15,14 @@
 #         data/dv_2023.rds         (from 01_download_data.R)
 # Output: output/<label>_table1_cohort.html
 #         output/<label>_service_mix.png
-#         output/<label>_q1_visits.csv
-#         output/<label>_q2_spending.csv
+#         output/<label>_q1_visits.csv              (prob any visit + mean + total)
+#         output/<label>_q2_spending.csv            (total + OOP + insurer payout)
 #         output/<label>_q3_service_mix.csv
-#         output/<label>_q1_visits_adjusted.csv
+#         output/<label>_q1_any_visit_adjusted.csv
+#         output/<label>_q1_visit_count_adjusted.csv
 #         output/<label>_q2a_total_spend_adjusted.csv
 #         output/<label>_q2b_oop_spend_adjusted.csv
+#         output/<label>_q2c_insurer_payout_adjusted.csv
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
@@ -32,8 +34,9 @@ dir.create(here("output"), showWarnings = FALSE)
 # Configuration — change these two lines to switch cohorts
 # =============================================================================
 
-design_path <- here("data", "design_dlr_2023.rds")  # path to design object
-label       <- "dlr_2023"                            # prefix for output files
+design_path      <- here("data", "design_dlr_2023.rds")   # path to design object
+design_full_path <- here("data", "design_full_2023.rds")  # full design (same year — needed for Q3)
+label            <- "dlr_2023"                             # prefix for output files
 
 # =============================================================================
 # 1. Load data
@@ -41,6 +44,7 @@ label       <- "dlr_2023"                            # prefix for output files
 
 message("Loading survey design and dental visits data...")
 design_analysis <- readRDS(design_path)
+design_full     <- readRDS(design_full_path)  # needed for Q3
 dv_raw          <- readRDS(here("data", "dv_2023.rds"))
 
 analytic <- design_analysis$variables
@@ -55,18 +59,27 @@ out_path <- function(filename) here("output", paste0(label, "_", filename))
 # Q1 — Dental visit frequency (DVTOT23)
 # =============================================================================
 
-message("\nQ1: Dental visit frequency...")
+message("\nQ1: Dental visit access and frequency...")
 
-q1_mean  <- svymean(~DVTOT23, design = design_analysis, na.rm = TRUE)
-q1_total <- svytotal(~DVTOT23, design = design_analysis, na.rm = TRUE)
+q1_any   <- svymean(~I(DVTOT23 > 0), design = design_analysis, na.rm = TRUE)
+q1_mean  <- svymean(~DVTOT23,        design = design_analysis, na.rm = TRUE)
+q1_total <- svytotal(~DVTOT23,       design = design_analysis, na.rm = TRUE)
 
-message("  Weighted mean visits: ", round(coef(q1_mean), 3),
+message("  Weighted prob any visit: ", round(coef(q1_any), 3),
+        " (SE: ", round(SE(q1_any), 3), ")")
+message("  Weighted mean visits:    ", round(coef(q1_mean), 3),
         " (SE: ", round(SE(q1_mean), 3), ")")
 
+q1_ci_any   <- confint(q1_any)
+q1_ci_mean  <- confint(q1_mean)
+q1_ci_total <- confint(q1_total)
+
 q1_out <- tibble(
-  metric   = c("mean_visits", "total_visits"),
-  estimate = c(coef(q1_mean), coef(q1_total)),
-  se       = c(SE(q1_mean), SE(q1_total))
+  metric   = c("prob_any_visit", "mean_visits", "total_visits"),
+  estimate = c(coef(q1_any),       coef(q1_mean),       coef(q1_total)),
+  se       = c(SE(q1_any),         SE(q1_mean),         SE(q1_total)),
+  ci_lower = c(q1_ci_any[, 1],     q1_ci_mean[, 1],     q1_ci_total[, 1]),
+  ci_upper = c(q1_ci_any[, 2],     q1_ci_mean[, 2],     q1_ci_total[, 2])
 )
 write_csv(q1_out, out_path("q1_visits.csv"))
 message("  Saved: ", out_path("q1_visits.csv"))
@@ -77,15 +90,20 @@ message("  Saved: ", out_path("q1_visits.csv"))
 
 message("\nQ2: Dental spending...")
 
-q2_mean <- svymean(~DVTEXP23 + DVTSLF23, design = design_analysis, na.rm = TRUE)
+q2_mean <- svymean(~DVTEXP23 + DVTSLF23 + DVTPRV23, design = design_analysis, na.rm = TRUE)
 
-message("  Weighted mean total expenditure: $", round(coef(q2_mean)["DVTEXP23"], 2))
-message("  Weighted mean OOP expenditure:   $", round(coef(q2_mean)["DVTSLF23"], 2))
+message("  Weighted mean total expenditure:   $", round(coef(q2_mean)["DVTEXP23"], 2))
+message("  Weighted mean OOP expenditure:     $", round(coef(q2_mean)["DVTSLF23"], 2))
+message("  Weighted mean insurer payout:      $", round(coef(q2_mean)["DVTPRV23"], 2))
+
+q2_ci <- confint(q2_mean)
 
 q2_out <- tibble(
-  outcome = names(coef(q2_mean)),
-  mean    = coef(q2_mean),
-  se      = SE(q2_mean)
+  outcome  = names(coef(q2_mean)),
+  mean     = coef(q2_mean),
+  se       = SE(q2_mean),
+  ci_lower = q2_ci[, 1],
+  ci_upper = q2_ci[, 2]
 )
 write_csv(q2_out, out_path("q2_spending.csv"))
 message("  Saved: ", out_path("q2_spending.csv"))
@@ -96,8 +114,6 @@ message("  Saved: ", out_path("q2_spending.csv"))
 
 message("\nQ3: Dental service mix...")
 
-dlr_ids <- unique(analytic$DUPERSID)
-
 procedure_vars <- c(
   "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
   "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
@@ -106,21 +122,53 @@ procedure_vars <- c(
 
 existing_proc_vars <- intersect(procedure_vars, names(dv_raw))
 
-dv_cohort <- dv_raw |>
-  filter(DUPERSID %in% dlr_ids) |>
-  select(DUPERSID, all_of(existing_proc_vars))
+if (length(existing_proc_vars) == 0) {
+  stop("No procedure variables found in HC-248B. ",
+       "Verify the file against the HC-248B codebook for this panel year.")
+}
 
-service_props <- dv_cohort |>
+# Collapse visit-level flags to person level: did this person have *any* visit
+# of each type? HC-248B has no visit-level weights; the AHRQ-recommended
+# approach is to aggregate to person level and apply person weights via the
+# design object. This also avoids inflating proportions for frequent visitors.
+dv_person <- dv_raw |>
+  select(DUPERSID, all_of(existing_proc_vars)) |>
+  group_by(DUPERSID) |>
   summarise(
     across(all_of(existing_proc_vars),
-           ~ mean(.x == 1, na.rm = TRUE),
-           .names = "{.col}")
-  ) |>
-  pivot_longer(everything(), names_to = "procedure", values_to = "proportion") |>
-  mutate(
-    n_visits  = nrow(dv_cohort),
-    procedure = factor(procedure, levels = existing_proc_vars)
-  ) |>
+           ~ as.integer(any(.x == 1, na.rm = TRUE)),
+           .names = "{.col}"),
+    .groups = "drop"
+  )
+
+# Merge onto the FULL person-level frame (from design_full), then subset.
+# IMPORTANT: svydesign() must be built from the complete sample so that all
+# strata/PSU combinations are present for correct variance estimation.
+# Merging onto the filtered analytic frame would silently discard strata,
+# breaking SEs — the same anti-pattern as filtering before svydesign().
+fyc_q3 <- design_full$variables |>
+  left_join(dv_person, by = "DUPERSID") |>
+  mutate(across(all_of(existing_proc_vars),
+                ~ replace_na(.x, 0L)))  # persons with no dental visits → 0
+
+design_q3 <- svydesign(
+  id      = ~VARPSU,
+  strata  = ~VARSTR,
+  weights = ~PERWT23F,
+  data    = fyc_q3,
+  nest    = TRUE
+)
+design_q3 <- subset(design_q3, DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
+
+svy_formula_q3 <- as.formula(paste("~", paste(existing_proc_vars, collapse = " + ")))
+q3_means <- svymean(svy_formula_q3, design = design_q3, na.rm = TRUE)
+
+service_props <- tibble(
+  procedure  = names(coef(q3_means)),
+  proportion = coef(q3_means),
+  se         = SE(q3_means)
+) |>
+  mutate(procedure = factor(procedure, levels = existing_proc_vars)) |>
   arrange(desc(proportion))
 
 print(service_props, n = Inf)
@@ -157,10 +205,10 @@ p_mix <- service_props |>
                      expand = expansion(mult = c(0, 0.15))) +
   labs(
     title    = paste0("Dental service mix — ", label),
-    subtitle = paste0("n visits = ", format(nrow(dv_cohort), big.mark = ",")),
+    subtitle = paste0("n persons (DLR cohort) = ", format(nrow(analytic), big.mark = ",")),
     x        = NULL,
-    y        = "Proportion of visits",
-    caption  = "Source: MEPS HC-248B. Visit-level proportions, unweighted."
+    y        = "Proportion of persons with any visit of type",
+    caption  = "Source: MEPS HC-248B + HC-251. Person-level weighted prevalence."
   ) +
   theme_minimal(base_size = 12) +
   theme(plot.title = element_text(face = "bold"))
@@ -174,17 +222,23 @@ message("  Saved: ", out_path("service_mix.png"))
 
 message("\nFitting covariate-adjusted models...")
 
-fit_q1  <- svyglm(update(formula_apriori, DVTOT23 ~ .),
-                  design = design_analysis, family = gaussian())
-fit_q2a <- svyglm(update(formula_apriori, log(DVTEXP23 + 1) ~ .),
-                  design = design_analysis, family = gaussian())
-fit_q2b <- svyglm(update(formula_apriori, log(DVTSLF23 + 1) ~ .),
-                  design = design_analysis, family = gaussian())
+fit_q1_any <- svyglm(update(formula_apriori, I(DVTOT23 > 0) ~ .),
+                     design = design_analysis, family = quasibinomial())
+fit_q1     <- svyglm(update(formula_apriori, DVTOT23 ~ .),
+                     design = design_analysis, family = quasipoisson())
+fit_q2a    <- svyglm(update(formula_apriori, log(DVTEXP23 + 1) ~ .),
+                     design = design_analysis, family = gaussian())
+fit_q2b    <- svyglm(update(formula_apriori, log(DVTSLF23 + 1) ~ .),
+                     design = design_analysis, family = gaussian())
+fit_q2c    <- svyglm(update(formula_apriori, log(DVTPRV23 + 1) ~ .),
+                     design = design_analysis, family = gaussian())
 
 models <- list(
-  list(fit = fit_q1,  name = "q1_visits"),
-  list(fit = fit_q2a, name = "q2a_total_spend"),
-  list(fit = fit_q2b, name = "q2b_oop_spend")
+  list(fit = fit_q1_any, name = "q1_any_visit"),
+  list(fit = fit_q1,     name = "q1_visit_count"),
+  list(fit = fit_q2a,    name = "q2a_total_spend"),
+  list(fit = fit_q2b,    name = "q2b_oop_spend"),
+  list(fit = fit_q2c,    name = "q2c_insurer_payout")
 )
 
 for (m in models) {
@@ -207,16 +261,16 @@ table_vars_candidates <- c(
 )
 table_vars <- intersect(table_vars_candidates, names(analytic))
 
-tbl <- analytic |>
-  select(all_of(table_vars)) |>
-  tbl_summary(
-    statistic = list(
+tbl <- design_analysis |>
+  tbl_svysummary(
+    include    = all_of(table_vars),
+    statistic  = list(
       all_continuous()  ~ "{mean} ({sd})",
-      all_categorical() ~ "{n} ({p}%)"
+      all_categorical() ~ "{n_unweighted} ({p}%)"
     ),
     missing = "ifany"
   ) |>
-  modify_caption(paste0("**Table 1. Cohort characteristics (unweighted) — ", label, "**")) |>
+  modify_caption(paste0("**Table 1. Cohort characteristics (survey-weighted) — ", label, "**")) |>
   bold_labels()
 
 tbl |>

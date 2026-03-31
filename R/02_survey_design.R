@@ -15,7 +15,7 @@
 #                 (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
 #
 # The same pipeline works for both the national public-use file and a
-# state-specific restricted-use file — just swap the .ssp in data/.
+# state-specific restricted-use file — just swap the .dta in data/.
 #
 # Input:  data/fyc_2023.rds  (from 01_download_data.R)
 # Output: data/design_full_2023.rds
@@ -33,7 +33,37 @@ fyc <- readRDS(here("data", "fyc_2023.rds"))
 message("  Rows: ", nrow(fyc))
 
 # =============================================================================
-# 2. Build the full national survey design
+# 2. Recode categorical covariates as factors
+# =============================================================================
+# These MEPS variables are integer-coded categories with no ordinal meaning.
+# Treating them as numeric in svyglm would impose a spurious linear slope
+# across arbitrarily-ordered codes (e.g., race codes 1–6 are not a scale).
+# Converting here ensures the correct type travels with the design object.
+#
+#   SEX      1=Male, 2=Female
+#   RACEV2X  1=White, 2=Black, 3=AIAN, 4=Asian/NHPI, 6=Multiple races
+#   POVCAT23 1=Poor, 2=Near poor, 3=Low income, 4=Middle income, 5=High income
+#   EMPST53  1=Employed, 2=Unemployed, 3=Not in labor force
+
+message("Recoding categorical covariates as factors...")
+
+fyc <- fyc |>
+  mutate(
+    SEX      = factor(SEX,      levels = c(1, 2),
+                      labels = c("Male", "Female")),
+    RACEV2X  = factor(RACEV2X,  levels = c(1, 2, 3, 4, 6),
+                      labels = c("White", "Black", "AIAN", "Asian/NHPI", "Multiple")),
+    POVCAT23 = factor(POVCAT23, levels = 1:5,
+                      labels = c("Poor", "Near poor", "Low income",
+                                 "Middle income", "High income")),
+    EMPST53  = factor(EMPST53,  levels = c(1, 2, 3),
+                      labels = c("Employed", "Unemployed", "Not in labor force"))
+  )
+
+message("  SEX, RACEV2X, POVCAT23, EMPST53 converted to factors.")
+
+# =============================================================================
+# 3. Build the full national survey design
 # =============================================================================
 # MEPS uses a stratified multistage cluster design:
 #   id      = VARPSU  — primary sampling unit
@@ -56,7 +86,7 @@ message("  Design: ",
         "Weighted N: ", format(round(sum(fyc$PERWT23F)), big.mark = ","))
 
 # =============================================================================
-# 3. DLR cohort: DNTINS31_M23 == 1 | DNTINS23_M23 == 1
+# 4. DLR cohort: DNTINS31_M23 == 1 | DNTINS23_M23 == 1
 # =============================================================================
 # Restricts to individuals who had dental insurance at any point in 2023.
 #
@@ -94,7 +124,7 @@ message("  DLR cohort: ",
         "Weighted N: ", format(dlr_weighted, big.mark = ","))
 
 # =============================================================================
-# 4. Save design objects
+# 5. Save design objects
 # =============================================================================
 
 saveRDS(design_full, here("data", "design_full_2023.rds"))

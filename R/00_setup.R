@@ -34,6 +34,11 @@ invisible(lapply(required_packages, function(pkg) {
   suppressPackageStartupMessages(library(pkg, character.only = TRUE))
 }))
 
+# MEPS has strata with a single PSU ("lonely PSUs"). The 'adjust' method
+# centers the contribution around the grand mean, which is AHRQ's recommended
+# approach and avoids errors during variance estimation in subpopulations.
+options(survey.lonely.psu = "adjust")
+
 dir.create(here::here("data"),   showWarnings = FALSE)
 dir.create(here::here("output"), showWarnings = FALSE)
 
