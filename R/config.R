@@ -78,7 +78,10 @@ formula_apriori <- reformulate(covars_apriori)
 # Analysis label (used as output file prefix)
 # =============================================================================
 
-if (!exists("label")) label <- paste0("dlr_", year)
+# Always derive from year so re-running with a different year doesn't carry
+# over a stale label from the previous session state.
+# Set label_override in run_all.R to use a custom prefix instead.
+label <- if (exists("label_override")) label_override else paste0("dlr_", year)
 
 # =============================================================================
 # Print config to console when sourced
