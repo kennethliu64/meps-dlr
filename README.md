@@ -11,13 +11,22 @@ on dental care utilization using MEPS survey data.
 
 ## Design
 
-Pre-post using MEPS 2023 (pre) and 2024 (post, pending data release), with covariate
-adjustment via regression and a synthetic control to construct the counterfactual.
-The DLR cohort is defined as individuals with dental insurance at any point in the
-survey year.
+**Treated unit**: Massachusetts dental-insured residents
+**Pre-period**: 2023 and earlier (before DLR takes effect)
+**Post-period**: 2024+ (DLR in effect)
+**Counterfactual**: Synthetic control — a weighted combination of other states whose
+pre-2024 dental outcomes and covariate profile best match MA's pre-period trajectory.
 
-> All estimates are **intention-to-treat**: MEPS does not distinguish self-insured
-> (ERISA-exempt) from fully-insured plans, so effects are likely attenuated toward null.
+No other US state has a dental loss ratio law, so no single real state serves as a
+valid comparison. The synthetic control constructs a "synthetic MA" from the donor
+pool of all other states. The treatment effect is actual MA 2024 minus synthetic
+MA 2024, with covariate adjustment via regression.
+
+The DLR cohort is individuals with dental insurance at any point in the survey year.
+
+> **Intention-to-treat**: MEPS does not distinguish self-insured (ERISA-exempt) from
+> fully-insured plans. Self-insured plan holders are not subject to the MA DLR mandate,
+> so effects are likely attenuated toward null.
 
 ## Data Sources
 
@@ -114,23 +123,39 @@ files in `data/` and update the filenames in `run_all.R`. The analysis code does
 For state-level data (e.g., MA restricted-use file from AHRQ), the file will
 already contain only that state's respondents — no filtering needed.
 
-## Updating for 2024
+## Roadmap
 
+### Step 1 — Pre-period baseline (current)
+Run the single-year pipeline for 2023 (and optionally earlier years). Each year
+produces a `dlr_<year>_*.html` output describing the MA DLR cohort in that year.
+More pre-period years strengthen the synthetic control matching step.
+
+### Step 2 — Add 2024 post-period data
 When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit
-the config block at the top of `run_all.R`:
+`run_all.R`:
 
 ```r
 year     <- 2024L
-fyc_file <- "h252.dta"   # update to actual FYC filename
-dv_file  <- "h249b.dta"  # update to actual dental visits filename
+fyc_file <- "h252.dta"
+dv_file  <- "h249b.dta"
 ```
 
-Then `source("run_all.R")`. All variable names, paths, and output labels update automatically.
+Then `source("run_all.R")`. All variable names and output labels update automatically.
 
 > **Dental insurance filter variables**: The pipeline auto-derives the `DNTINS` variable
 > names from `year`. If those names don't exist in your file, `01_download_data.R` will
 > print every `DNTINS*` variable it finds and tell you what to set. Uncomment and edit
 > `dntins1_override` / `dntins2_override` in `run_all.R`, then re-run.
+
+### Step 3 — Synthetic control (requires restricted-use MEPS)
+MEPS public-use files do not include state identifiers. Constructing the synthetic
+control donor pool (all non-MA states) requires the MEPS restricted-use file from
+AHRQ, which requires a data use agreement.
+
+Once available, a new `R/04_synthetic_control.R` script will:
+1. Stack pre- and post-period national data with a `post` indicator and state ID
+2. Construct the synthetic MA using the donor pool of other states
+3. Compare actual MA 2024 to synthetic MA 2024 with covariate adjustment
 
 ## Limitations
 
