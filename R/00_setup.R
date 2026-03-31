@@ -8,7 +8,7 @@
 # ---- CRAN packages ----------------------------------------------------------
 
 required_packages <- c(
-  "Hmisc",       # sasxport.get() for reading MEPS .ssp files
+  "haven",       # read_dta() for reading MEPS Stata (.dta) files
   "tidyverse",   # Data manipulation and visualization
   "survey",      # Complex survey-weighted regression (svyglm, svydesign)
   "srvyr",       # Tidy (dplyr-style) interface to the survey package

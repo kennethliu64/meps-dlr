@@ -1,14 +1,14 @@
 # =============================================================================
 # 01_download_data.R
 # Load MEPS HC-251 (Full-Year Consolidated, 2023) and HC-248B (Dental Visits,
-# 2023) from local .ssp files.
+# 2023) from local Stata (.dta) files.
 #
 # Download the files yourself from AHRQ:
 #   HC-251:  https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp
 #   HC-248B: same site, search for "Dental Visits" under 2023 event files
 #
-# Place the .ssp (SAS transport / XPT) files in the data/ folder and update
-# the filenames below if they differ from the defaults.
+# Select "Data File, Stata format" (.dta inside a .zip). Unzip and place the
+# .dta files in the data/ folder. Update filenames below if yours differ.
 #
 # To update for 2024: swap filenames and update variable suffixes throughout.
 #
@@ -24,8 +24,8 @@ dir.create(here("data"), showWarnings = FALSE)
 # Configuration — update filenames here if yours differ
 # =============================================================================
 
-local_fyc_path <- here("data", "h251.ssp")   # HC-251: Full-Year Consolidated
-local_dv_path  <- here("data", "h248b.ssp")  # HC-248B: Dental Visits
+local_fyc_path <- here("data", "h251.dta")   # HC-251: Full-Year Consolidated
+local_dv_path  <- here("data", "h248b.dta")  # HC-248B: Dental Visits
 
 # =============================================================================
 # 1. Person-Level File — HC-251 (Full-Year Consolidated)
@@ -35,11 +35,11 @@ message("Loading HC-251 (2023 Full-Year Consolidated)...")
 
 if (!file.exists(local_fyc_path)) {
   stop("File not found: ", local_fyc_path,
-       "\nDownload HC-251 (.ssp) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
-       "\nand place it in data/.")
+       "\nDownload HC-251 (Stata format) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
+       "\nunzip it, and place the .dta file in data/.")
 }
 
-fyc_raw <- Hmisc::sasxport.get(local_fyc_path)
+fyc_raw <- haven::read_dta(local_fyc_path)
 message("  Rows: ", nrow(fyc_raw), " | Cols: ", ncol(fyc_raw))
 
 # Convert all variable names to uppercase for consistent access
@@ -78,11 +78,11 @@ message("\nLoading HC-248B (2023 Dental Visits)...")
 
 if (!file.exists(local_dv_path)) {
   stop("File not found: ", local_dv_path,
-       "\nDownload HC-248B (.ssp) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
-       "\nand place it in data/.")
+       "\nDownload HC-248B (Stata format) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
+       "\nunzip it, and place the .dta file in data/.")
 }
 
-dv_raw <- Hmisc::sasxport.get(local_dv_path)
+dv_raw <- haven::read_dta(local_dv_path)
 message("  Rows: ", nrow(dv_raw), " | Cols: ", ncol(dv_raw))
 
 names(dv_raw) <- toupper(names(dv_raw))
