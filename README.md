@@ -11,9 +11,10 @@ on dental care utilization using MEPS survey data.
 
 ## Design
 
-Pre-post (and eventually difference-in-differences) using MEPS 2023 (pre) and 2024 (post,
-pending data release). The DLR cohort is defined as individuals with dental insurance at
-any point in the survey year.
+Pre-post using MEPS 2023 (pre) and 2024 (post, pending data release), with covariate
+adjustment via regression and a synthetic control to construct the counterfactual.
+The DLR cohort is defined as individuals with dental insurance at any point in the
+survey year.
 
 > All estimates are **intention-to-treat**: MEPS does not distinguish self-insured
 > (ERISA-exempt) from fully-insured plans, so effects are likely attenuated toward null.
@@ -22,6 +23,9 @@ any point in the survey year.
 
 Download the **Stata format** (`.dta`) zip files from AHRQ, unzip, and place the `.dta`
 files in `data/`:
+
+Links below are for the 2023 files (the default in `run_all.R`). For other years,
+find the equivalent files on the [MEPS data files page](https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp).
 
 | File | Data | Codebook | Description |
 |------|------|----------|-------------|

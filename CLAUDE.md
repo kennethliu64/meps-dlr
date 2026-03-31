@@ -115,20 +115,6 @@ R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → outp
 Individual scripts can be sourced standalone — they default to `year = 2023` if `year`
 is not already set in the session.
 
-## Data setup
-
-Download **Stata format** (.dta) files from AHRQ and place them in `data/`.
-Set the filenames and year in the config block at the top of `run_all.R`:
-
-```r
-year     <- 2023L
-fyc_file <- "h251.dta"   # HC-251 Full-Year Consolidated 2023
-dv_file  <- "h248b.dta"  # HC-248B Dental Visits 2023
-```
-
-All variable names, file paths, and output labels are derived automatically from
-`year` by `config.R`. No other files need editing when changing the survey year.
-
 ## Switching between national and state-level data
 
 The pipeline is data-agnostic. To analyze a different population, swap the `.dta`
@@ -163,8 +149,8 @@ Access as a formula via `formula_apriori`. Attach an outcome with
 
 **Current adjusted models are baseline description only.** The `svyglm` models in
 `03_analysis.R` estimate covariate-outcome associations with no treatment variable —
-they describe the survey year cohort, not a DLR law effect. When 2024 data is added, a
-difference-in-differences treatment indicator replaces this structure.
+they describe the survey year cohort, not a DLR law effect. When 2024 data is added,
+a `post` indicator and synthetic control structure replace this baseline-only form.
 
 ## Updating for 2024
 
@@ -186,5 +172,5 @@ No other files need editing for a standard year update.
 > tell you exactly what to set. Uncomment and edit `dntins1_override` /
 > `dntins2_override` in `run_all.R` with the correct names, then re-run.
 
-After running both years separately, stack 2023 + 2024 data and activate the DiD
-model structure.
+After running both years separately, stack the harmonized data and activate the
+synthetic control + covariate-adjusted comparison structure.
