@@ -11,50 +11,73 @@ to spend a minimum share of premium revenue on patient care.
 
 Research questions:
 1. Did dental care **access and frequency** change among DLR-affected MA residents?
-   - Access: probability of any dental visit (`I(DVTOT23 > 0)`, binary)
-   - Frequency: unconditional annual visit count, including zero for non-visitors (`DVTOT23`)
+   - Access: probability of any dental visit (`I(var_visits > 0)`, binary)
+   - Frequency: unconditional annual visit count, including zero for non-visitors (`var_visits`)
 2. Did **dental spending** change?
-   - Total expenditures (`DVTEXP23`) — all-source spending per person
-   - Out-of-pocket (`DVTSLF23`) — patient burden
-   - Private insurance payments (`DVTPRV23`) — insurer payout per person; relevant to DLR but zero for insured individuals with no dental visits
+   - Total expenditures (`var_totexp`) — all-source spending per person
+   - Out-of-pocket (`var_oopexp`) — patient burden
+   - Private insurance payments (`var_prvexp`) — insurer payout per person; relevant to DLR but zero for insured individuals with no dental visits
 3. Did the **mix of dental services** change? (`EXAMINEX`–`ORTHDONX`)
+
+## Pipeline entry point
+
+**Edit `run_all.R`, then `source("run_all.R")`.**
+
+```r
+# run_all.R — edit these three lines, then source the file
+year     <- 2023L        # Survey year
+fyc_file <- "h251.dta"  # FYC filename in data/
+dv_file  <- "h248b.dta" # Dental visits filename in data/
+
+# Optional: override dental insurance filter variable names
+# (uncomment if auto-derived names don't exist in the file)
+# dntins1_override <- "DNTINS31_M23"
+# dntins2_override <- "DNTINS23_M23"
+```
+
+All year-specific variable names, file paths, and output labels are derived
+automatically from `year` by `R/config.R`. **No other files need editing** for a
+standard year change.
 
 ## Key variables
 
-| Variable | Description | Q | File |
-|----------|-------------|---|------|
-| `DNTINS31_M23` | Dental insurance, any time in Round 3/Period 1 (early 2023) — **eligibility filter (part 1)** | — | HC-251 |
-| `DNTINS23_M23` | Dental insurance, any time R5/R3 through 12/31/2023 (later 2023) — **eligibility filter (part 2)** | — | HC-251 |
-| `DVTOT23` | Total dental visits | Q1 | HC-251 |
-| `DVTEXP23` | Total dental expenditures (all sources) | Q2 | HC-251 |
-| `DVTSLF23` | Out-of-pocket dental expenditures | Q2 | HC-251 |
-| `DVTPRV23` | Annual total of private insurance payments for dental care — captures insurer payout but is zero for insured individuals who had no visits or whose insurer paid nothing; **not used as eligibility filter** | Q2 | HC-251 |
-| `EXAMINEX`–`ORTHDONX` | Procedure type flags | Q3 | HC-248B |
-| `PERWT23F` | Person-level analysis weight | — | HC-251 |
-| `VARSTR` | Variance stratum | — | HC-251 |
-| `VARPSU` | Variance PSU | — | HC-251 |
+Variable names below are year-specific; `config.R` derives them automatically.
+The config variable names (e.g. `var_visits`) are what the code uses.
+
+| Config var | MEPS pattern | Description | Q | File |
+|------------|-------------|-------------|---|------|
+| `var_dntins1` | `DNTINS31_M{yr}` | Dental insurance, early survey year — **eligibility filter (part 1)** | — | FYC |
+| `var_dntins2` | `DNTINS23_M{yr}` | Dental insurance, late survey year — **eligibility filter (part 2)** | — | FYC |
+| `var_visits` | `DVTOT{yr}` | Total dental visits | Q1 | FYC |
+| `var_totexp` | `DVTEXP{yr}` | Total dental expenditures (all sources) | Q2 | FYC |
+| `var_oopexp` | `DVTSLF{yr}` | Out-of-pocket dental expenditures | Q2 | FYC |
+| `var_prvexp` | `DVTPRV{yr}` | Annual total of private insurance payments for dental care — captures insurer payout but is zero for insured individuals who had no visits or whose insurer paid nothing; **not used as eligibility filter** | Q2 | FYC |
+| `var_weight` | `PERWT{yr}F` | Person-level analysis weight | — | FYC |
+| — | `EXAMINEX`–`ORTHDONX` | Procedure type flags | Q3 | Dental Visits |
+| — | `VARSTR` | Variance stratum | — | FYC |
+| — | `VARPSU` | Variance PSU | — | FYC |
 
 ## DLR cohort filter
 
 ```r
-DNTINS31_M23 == 1 | DNTINS23_M23 == 1
+var_dntins1 == 1 | var_dntins2 == 1
 ```
 
-Anyone with dental insurance at any point in 2023. MEPS collects insurance data
-across multiple interview rounds, so two variables are needed to cover the full year:
-- `DNTINS31_M23` — dental coverage in Round 3 / Period 1 (early 2023)
-- `DNTINS23_M23` — dental coverage in R5/R3 through 12/31/2023 (later 2023)
+Anyone with dental insurance at any point in the survey year. MEPS collects insurance
+data across multiple interview rounds, so two variables cover complementary windows of
+the year. Using OR captures anyone with dental coverage during any part of the year.
 
-**Why dental-specific variables and not DVTPRV23 > 0**: Using `DVTPRV23 > 0` conditions
-on the outcome (private insurance paid for dental care), which excludes dentally-insured
-people who didn't go to the dentist — exactly the group where the DLR law may have had
-an effect. `DNTINS` variables define eligibility by coverage status, not utilization.
+**Why dental-specific variables and not `var_prvexp > 0`**: Using `var_prvexp > 0`
+conditions on the outcome (private insurance paid for dental care), which excludes
+dentally-insured people who didn't go to the dentist — exactly the group where the DLR
+law may have had an effect. `DNTINS` variables define eligibility by coverage status,
+not utilization.
 
-`DVTPRV23` is a **Q2 outcome variable**: how much did private insurance pay? It captures
+`var_prvexp` is a **Q2 outcome variable**: how much did private insurance pay? It captures
 the insurer payout side of the DLR formula. Note that MEPS does not collect premium
-data, so the loss ratio itself cannot be computed; `DVTPRV23` is the closest available
-proxy for insurer payout behavior. It should be analyzed alongside `DVTEXP23` and
-`DVTSLF23`, not used as a sample selection criterion.
+data, so the loss ratio itself cannot be computed; `var_prvexp` is the closest available
+proxy for insurer payout behavior. It should be analyzed alongside `var_totexp` and
+`var_oopexp`, not used as a sample selection criterion.
 
 **Limitation**: MEPS does not distinguish self-insured (ERISA-exempt) from fully-insured
 dental plans. Self-insured plan holders are misclassified as DLR-affected.
@@ -65,33 +88,37 @@ All estimates are **intention-to-treat** and likely attenuated toward null.
 - Set `options(survey.lonely.psu = "adjust")` before any `svydesign()` call (done in
   `00_setup.R`). MEPS has strata with a single PSU; without this option the `survey`
   package throws an error or uses an inferior variance estimator.
-- Design variables: `id = ~VARPSU`, `strata = ~VARSTR`, `weights = ~PERWT23F`, `nest = TRUE`
+- Design variables: `id = ~VARPSU`, `strata = ~VARSTR`, `weights = ~<var_weight>`, `nest = TRUE`
 - ALWAYS use `subset(design, condition)` to filter subpopulations — never filter the
   raw data frame before calling `svydesign()`. Filtering rows first discards strata/PSU
   combinations and breaks variance estimation. This applies even when merging auxiliary
-  data (e.g., HC-248B): merge onto the full person-level frame, build the design from
-  the full frame, then `subset()`.
-- Categorical covariates (`SEX`, `RACEV2X`, `POVCAT23`, `EMPST53`) must be R factors
+  data (e.g., dental visits file): merge onto the full person-level frame, build the
+  design from the full frame, then `subset()`.
+- Categorical covariates (`SEX`, `RACEV2X`, `var_povcat`, `EMPST53`) must be R factors
   before entering `svydesign()`. This is done in `02_survey_design.R`. Never pass
   integer-coded categories to `svyglm` as numeric — it imposes a spurious ordinal slope.
-- Visit-level data (HC-248B) has no visit-level weights. Collapse to person level
-  (`any(flag == 1)` per person), merge onto the full HC-251 frame, then apply person
+- Visit-level data (dental visits file) has no visit-level weights. Collapse to person
+  level (`any(flag == 1)` per person), merge onto the full FYC frame, then apply person
   weights via the design object.
 
-## Scripts (run in order)
+## Scripts (run in order via run_all.R)
 
 ```
-R/00_setup.R            # Install + load packages (run once)
-R/config.R              # A priori covariate set and model formulas (sourced by analysis scripts)
-R/01_download_data.R    # Load HC-251 + HC-248B from local .dta files → data/*.rds
+run_all.R               ← EDIT THIS, then source("run_all.R")
+R/00_setup.R            # Install + load packages (also run once standalone)
+R/config.R              # Derives all variable names from year (sourced automatically, don't run directly)
+R/01_download_data.R    # Load FYC + dental visits from local .dta files → data/*.rds
 R/02_survey_design.R    # Build survey design objects → data/*.rds
 R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → output/
 ```
 
+Individual scripts can be sourced standalone — they default to `year = 2023` if `year`
+is not already set in the session.
+
 ## Data setup
 
 Download **Stata format** (.dta) files from AHRQ and place them in `data/`.
-Set the filenames and year in the three-line config block at the top of `run_all.R`:
+Set the filenames and year in the config block at the top of `run_all.R`:
 
 ```r
 year     <- 2023L
@@ -105,43 +132,44 @@ All variable names, file paths, and output labels are derived automatically from
 ## Switching between national and state-level data
 
 The pipeline is data-agnostic. To analyze a different population, swap the `.dta`
-files in `data/` and re-run the scripts. The analysis code doesn't change.
+files in `data/` and update the filenames in `run_all.R`. The analysis code doesn't change.
 
 For state-level data (e.g., MA restricted-use file from AHRQ), the file will
 already contain only that state's respondents — no state-code filtering is needed.
 
 ## Covariate set (defined in config.R)
 
-| Config variable | MEPS name (2023) | Type | Reference level |
-|----------------|-----------------|------|----------------|
-| `var_age` | `AGE23X` | Continuous | — |
+| Config variable | MEPS pattern | Type | Reference level |
+|----------------|-------------|------|----------------|
+| `var_age` | `AGE{yr}X` | Continuous | — |
 | `SEX` | `SEX` | Factor | Male |
 | `RACEV2X` | `RACEV2X` | Factor | White |
-| `var_povcat` | `POVCAT23` | Factor | Poor |
+| `var_povcat` | `POVCAT{yr}` | Factor | Poor |
 | `EMPST53` | `EMPST53` | Factor | Employed |
 
 Factors are coded in `02_survey_design.R` before the design object is built; the
 reference levels above are the first level of each factor (R default).
 
-Access as a formula via `formula_apriori`. Attach an outcome with `update(formula_apriori, outcome ~ .)`.
+Access as a formula via `formula_apriori`. Attach an outcome with
+`update(formula_apriori, as.formula(paste0("outcome ~ .")))`.
 
 ## Model choices
 
-| Outcome (config var) | MEPS name (2023) | Model family | Rationale |
-|---------------------|-----------------|-------------|-----------|
-| `I(var_visits > 0)` (any visit, Q1) | `DVTOT23` | `quasibinomial()` | Binary; estimates probability of any dental contact |
-| `var_visits` (visit count, Q1) | `DVTOT23` | `quasipoisson()` | Count; Poisson log-link avoids negative predictions; quasi accounts for overdispersion |
-| `var_totexp`, `var_oopexp`, `var_prvexp` (spending, Q2) | `DVTEXP23`, `DVTSLF23`, `DVTPRV23` | `gaussian()` on `log(y + 1)` | Common approximation for right-skewed spending; the +1 shift handles zeros but makes coefficients harder to interpret in dollar terms |
+| Config var | Model family | Rationale |
+|------------|-------------|-----------|
+| `I(var_visits > 0)` (any visit, Q1) | `quasibinomial()` | Binary; estimates probability of any dental contact |
+| `var_visits` (visit count, Q1) | `quasipoisson()` | Count; Poisson log-link avoids negative predictions; quasi accounts for overdispersion |
+| `var_totexp`, `var_oopexp`, `var_prvexp` (spending, Q2) | `gaussian()` on `log(y + 1)` | Common approximation for right-skewed spending; the +1 shift handles zeros but makes coefficients harder to interpret in dollar terms |
 
 **Current adjusted models are baseline description only.** The `svyglm` models in
 `03_analysis.R` estimate covariate-outcome associations with no treatment variable —
-they describe the 2023 cohort, not a DLR law effect. When 2024 data is added, a
+they describe the survey year cohort, not a DLR law effect. When 2024 data is added, a
 difference-in-differences treatment indicator replaces this structure.
 
 ## Updating for 2024
 
 When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit
-the three-line config block at the top of `run_all.R`:
+the config block at the top of `run_all.R`:
 
 ```r
 year     <- 2024L
