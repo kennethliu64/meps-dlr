@@ -9,6 +9,15 @@ Evaluates the impact of Massachusetts' **Dental Loss Ratio (DLR) law** (effectiv
 on dental care utilization using MEPS survey data. The DLR law requires dental insurers
 to spend a minimum share of premium revenue on patient care.
 
+**Study design**:
+- **Treated unit**: MA dental-insured residents
+- **Pre-period**: 2023 and earlier (before DLR)
+- **Post-period**: 2024+ (DLR in effect)
+- **Counterfactual**: Synthetic control — weighted combination of other states whose
+  pre-2024 dental outcomes and covariate profile best match MA's pre-period trajectory.
+  No other US state has a DLR law, so no single real state is a valid comparison group.
+- **Effect**: actual MA 2024 minus synthetic MA 2024, with covariate adjustment
+
 Research questions:
 1. Did dental care **access and frequency** change among DLR-affected MA residents?
    - Access: probability of any dental visit (`I(var_visits > 0)`, binary)
@@ -115,20 +124,6 @@ R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → outp
 Individual scripts can be sourced standalone — they default to `year = 2023` if `year`
 is not already set in the session.
 
-## Data setup
-
-Download **Stata format** (.dta) files from AHRQ and place them in `data/`.
-Set the filenames and year in the config block at the top of `run_all.R`:
-
-```r
-year     <- 2023L
-fyc_file <- "h251.dta"   # HC-251 Full-Year Consolidated 2023
-dv_file  <- "h248b.dta"  # HC-248B Dental Visits 2023
-```
-
-All variable names, file paths, and output labels are derived automatically from
-`year` by `config.R`. No other files need editing when changing the survey year.
-
 ## Switching between national and state-level data
 
 The pipeline is data-agnostic. To analyze a different population, swap the `.dta`
@@ -161,10 +156,11 @@ Access as a formula via `formula_apriori`. Attach an outcome with
 | `var_visits` (visit count, Q1) | `quasipoisson()` | Count; Poisson log-link avoids negative predictions; quasi accounts for overdispersion |
 | `var_totexp`, `var_oopexp`, `var_prvexp` (spending, Q2) | `gaussian()` on `log(y + 1)` | Common approximation for right-skewed spending; the +1 shift handles zeros but makes coefficients harder to interpret in dollar terms |
 
-**Current adjusted models are baseline description only.** The `svyglm` models in
-`03_analysis.R` estimate covariate-outcome associations with no treatment variable —
-they describe the survey year cohort, not a DLR law effect. When 2024 data is added, a
-difference-in-differences treatment indicator replaces this structure.
+**Current adjusted models are pre-period baseline description only.** The `svyglm`
+models in `03_analysis.R` estimate covariate-outcome associations with no treatment
+variable — they characterize the MA DLR cohort in each pre-period year. When 2024
+data and the restricted-use state identifiers are available, a `post` indicator,
+donor-pool stacking, and synthetic control weights replace this baseline-only form.
 
 ## Updating for 2024
 
@@ -186,5 +182,6 @@ No other files need editing for a standard year update.
 > tell you exactly what to set. Uncomment and edit `dntins1_override` /
 > `dntins2_override` in `run_all.R` with the correct names, then re-run.
 
-After running both years separately, stack 2023 + 2024 data and activate the DiD
-model structure.
+After running all pre-period years and 2024 separately, stack the harmonized national
+data (requires restricted-use MEPS with state identifiers), construct the synthetic
+control donor pool from non-MA states, and estimate the treatment effect.
