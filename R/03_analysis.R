@@ -240,6 +240,18 @@ message("  Saved: ", out_path("service_mix.png"))
 
 message("\nFitting covariate-adjusted models...")
 
+# Apply human-readable variable labels so they appear in all model tables
+# rather than raw MEPS codes (AGE22X, POVCAT22, etc.)
+var_labels <- list(
+  "Age (years)",
+  "Sex",
+  "Race/ethnicity",
+  "Income level",
+  "Employment status"
+)
+names(var_labels) <- covars_apriori
+labelled::var_label(design_analysis$variables) <- var_labels
+
 f_q1_any <- as.formula(paste0("I(", var_visits, " > 0) ~ ."))
 f_q1     <- as.formula(paste0(var_visits, " ~ ."))
 f_q2a    <- as.formula(paste0("log(", var_totexp, " + 1) ~ ."))
@@ -259,24 +271,28 @@ fit_q2c    <- svyglm(update(formula_apriori, f_q2c),
 
 tbl_models <- tbl_merge(
   list(
-    tbl_regression(fit_q1_any, exponentiate = TRUE),
-    tbl_regression(fit_q1,     exponentiate = TRUE),
-    tbl_regression(fit_q2a,    exponentiate = FALSE),
-    tbl_regression(fit_q2b,    exponentiate = FALSE),
-    tbl_regression(fit_q2c,    exponentiate = FALSE)
+    tbl_regression(fit_q1_any, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q1,     exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2a,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2b,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2c,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3))
   ),
   tab_spanner = c(
     "**Any visit** (OR)",
     "**Visit count** (IRR)",
-    "**Total spend** (log \u03b2)",
-    "**OOP spend** (log \u03b2)",
+    "**Total expenditure** (log \u03b2)",
+    "**Out-of-pocket spend** (log \u03b2)",
     "**Insurer payout** (log \u03b2)"
   )
 ) |>
-  modify_caption(paste0(
-    "**Covariate-adjusted models — ", label, "**<br>",
-    "OR = odds ratio; IRR = incidence rate ratio; ",
-    "log \u03b2 = coefficient on log(y+1) scale."
+  modify_caption(paste0("**Covariate-adjusted models \u2014 ", label, "**")) |>
+  modify_footnote(everything() ~ paste0(
+    "OR = odds ratio (quasibinomial); IRR = incidence rate ratio (quasipoisson); ",
+    "log \u03b2 = coefficient on log(y+1) scale (gaussian) \u2014 reflects direction and relative ",
+    "magnitude of association but cannot be converted to dollar amounts directly. ",
+    "Reference categories: Male, White, Poor, Employed. ",
+    "All models survey-weighted (MEPS complex design). ",
+    dlr_n_label, "."
   )) |>
   bold_labels()
 
@@ -369,6 +385,7 @@ message("\nBuilding cohort descriptive table (Table 1)...")
 
 # Table 1 shows exactly the covariates used in the regression models —
 # no more, no less. Outcomes are reported separately in descriptive.html.
+# var_labels applied above (for models) carry through to tbl_svysummary too.
 table_vars <- intersect(covars_apriori, names(analytic))
 
 tbl <- design_analysis |>
