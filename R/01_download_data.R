@@ -1,50 +1,33 @@
 # =============================================================================
 # 01_download_data.R
-# Load MEPS HC-251 (Full-Year Consolidated, 2023) and HC-248B (Dental Visits,
-# 2023) from local Stata (.dta) files.
+# Load MEPS Full-Year Consolidated and Dental Visits files from local Stata
+# (.dta) files and save as .rds for downstream scripts.
 #
 # Download the files from AHRQ and unzip into data/:
+#   Each zip contains a single .dta file. Place them in data/ and set
+#   fyc_file / dv_file in run_all.R (or the defaults in config.R apply).
 #
-#   HC-251  (Full-Year Consolidated 2023):
-#     Data:      https://meps.ahrq.gov/data_files/pufs/h251/h251dta.zip
-#     Codebook:  https://meps.ahrq.gov/data_files/pufs/h251/h251cb.pdf
-#     Docs:      https://meps.ahrq.gov/data_stats/download_data/pufs/h251/h251doc.pdf
-#
-#   HC-248B (Dental Visits 2023):
-#     Data:      https://meps.ahrq.gov/data_files/pufs/h248b/h248bdta.zip
-#     Codebook:  https://meps.ahrq.gov/data_files/pufs/h248b/h248bcb.pdf
-#     Docs:      https://meps.ahrq.gov/data_stats/download_data/pufs/h248b/h248bdoc.pdf
-#
-# Each zip contains a single .dta file. Place them in data/ and update the
-# filenames below if yours differ.
-#
-# To update for 2024: swap filenames and update variable suffixes throughout.
-#
-# Output: data/fyc_2023.rds   (HC-251: person-level)
-#         data/dv_2023.rds    (HC-248B: dental visits, event-level)
+# Output: data/fyc_<year>.rds   (person-level)
+#         data/dv_<year>.rds    (dental visits, event-level)
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
+source(here::here("R", "config.R"))
 
 dir.create(here("data"), showWarnings = FALSE)
 
-# =============================================================================
-# Configuration — update filenames here if yours differ
-# =============================================================================
-
-local_fyc_path <- here("data", "h251.dta")   # HC-251: Full-Year Consolidated
-local_dv_path  <- here("data", "h248b.dta")  # HC-248B: Dental Visits
+local_fyc_path <- here("data", fyc_file)
+local_dv_path  <- here("data", dv_file)
 
 # =============================================================================
-# 1. Person-Level File — HC-251 (Full-Year Consolidated)
+# 1. Person-Level File — Full-Year Consolidated
 # =============================================================================
 
-message("Loading HC-251 (2023 Full-Year Consolidated)...")
+message("Loading ", fyc_file, " (", year, " Full-Year Consolidated)...")
 
 if (!file.exists(local_fyc_path)) {
   stop("File not found: ", local_fyc_path,
-       "\nDownload HC-251 (Stata format) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
-       "\nunzip it, and place the .dta file in data/.")
+       "\nDownload the FYC Stata file from AHRQ, unzip, and place the .dta in data/.")
 }
 
 fyc_raw <- haven::read_dta(local_fyc_path)
@@ -60,38 +43,37 @@ fyc_raw <- haven::zap_labels(fyc_raw)
 # ---- Sanity checks on key variables ----------------------------------------
 
 required_fyc_vars <- c(
-  "DNTINS31_M23", # Dental insurance Round 3/Period 1 (eligibility filter)
-  "DNTINS23_M23", # Dental insurance R5/R3 through 12/31/2023 (eligibility filter)
-  "DVTPRV23",     # Private insurance dental payments (outcome)
-  "DVTOT23",      # Total dental visits (Q1 outcome)
-  "DVTEXP23",     # Total dental expenditures (Q2 outcome)
-  "DVTSLF23",     # Out-of-pocket dental expenditures (Q2 outcome)
-  "PERWT23F",     # Person-level analysis weight
-  "VARSTR",       # Variance stratum
-  "VARPSU",       # Variance PSU
-  "DUPERSID"      # Person identifier (links to event files)
+  var_dntins1,  # Dental insurance eligibility filter (part 1)
+  var_dntins2,  # Dental insurance eligibility filter (part 2)
+  var_prvexp,   # Private insurance dental payments (outcome)
+  var_visits,   # Total dental visits (Q1 outcome)
+  var_totexp,   # Total dental expenditures (Q2 outcome)
+  var_oopexp,   # Out-of-pocket dental expenditures (Q2 outcome)
+  var_weight,   # Person-level analysis weight
+  "VARSTR",     # Variance stratum
+  "VARPSU",     # Variance PSU
+  "DUPERSID"    # Person identifier (links to event files)
 )
 
 missing_fyc <- setdiff(required_fyc_vars, names(fyc_raw))
 if (length(missing_fyc) > 0) {
-  stop("Required variables missing from HC-251: ", paste(missing_fyc, collapse = ", "))
+  stop("Required variables missing from FYC file: ", paste(missing_fyc, collapse = ", "))
 }
-message("  All required variables present in HC-251.")
+message("  All required variables present.")
 
 # ---- Save ------------------------------------------------------------------
-saveRDS(fyc_raw, here("data", "fyc_2023.rds"))
-message("  Saved: data/fyc_2023.rds")
+saveRDS(fyc_raw, fyc_rds)
+message("  Saved: ", fyc_rds)
 
 # =============================================================================
-# 2. Dental Visits Event-Level File — HC-248B
+# 2. Dental Visits Event-Level File
 # =============================================================================
 
-message("\nLoading HC-248B (2023 Dental Visits)...")
+message("\nLoading ", dv_file, " (", year, " Dental Visits)...")
 
 if (!file.exists(local_dv_path)) {
   stop("File not found: ", local_dv_path,
-       "\nDownload HC-248B (Stata format) from https://meps.ahrq.gov/mepsweb/data_stats/download_data_files.jsp",
-       "\nunzip it, and place the .dta file in data/.")
+       "\nDownload the Dental Visits Stata file from AHRQ, unzip, and place the .dta in data/.")
 }
 
 dv_raw <- haven::read_dta(local_dv_path)
@@ -112,15 +94,15 @@ procedure_vars <- c(
 missing_dv <- setdiff(procedure_vars, names(dv_raw))
 if (length(missing_dv) > 0) {
   warning(
-    "Some procedure variables not found in HC-248B: ",
+    "Some procedure variables not found in dental visits file: ",
     paste(missing_dv, collapse = ", "),
-    "\nVerify against the HC-248B codebook for this panel year."
+    "\nVerify against the codebook for this panel year."
   )
 }
 message("  Procedure variables found: ",
         length(intersect(procedure_vars, names(dv_raw))), " / ", length(procedure_vars))
 
-saveRDS(dv_raw, here("data", "dv_2023.rds"))
-message("  Saved: data/dv_2023.rds")
+saveRDS(dv_raw, dv_rds)
+message("  Saved: ", dv_rds)
 
 message("\n01_download_data.R complete.")

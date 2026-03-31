@@ -7,12 +7,13 @@
 # state-level, or any other subpopulation. Build the design you need in
 # 02_survey_design.R, save it as an .rds, and point this script at it.
 #
-# Q1: Dental visit frequency (DVTOT23)
-# Q2: Total and out-of-pocket dental expenditures (DVTEXP23, DVTSLF23)
-# Q3: Dental service mix (procedure flags from HC-248B)
+# Q1: Dental visit frequency
+# Q2: Total and out-of-pocket dental expenditures
+# Q3: Dental service mix (procedure flags from dental visits event file)
 #
-# Input:  data/<your_design>.rds   (from 02_survey_design.R)
-#         data/dv_2023.rds         (from 01_download_data.R)
+# Input:  data/design_dlr_<year>.rds   (from 02_survey_design.R)
+#         data/design_full_<year>.rds  (from 02_survey_design.R)
+#         data/dv_<year>.rds           (from 01_download_data.R)
 # Output: output/<label>_table1_cohort.html   — survey-weighted cohort characteristics
 #         output/<label>_descriptive.html     — formatted Q1/Q2/Q3 results (human-readable)
 #         output/<label>_models.html          — all 5 adjusted models in one table
@@ -28,39 +29,34 @@ source(here::here("R", "config.R"))
 dir.create(here("output"), showWarnings = FALSE)
 
 # =============================================================================
-# Configuration — change these two lines to switch cohorts
-# =============================================================================
-
-design_path      <- here("data", "design_dlr_2023.rds")   # path to design object
-design_full_path <- here("data", "design_full_2023.rds")  # full design (same year — needed for Q3)
-label            <- "dlr_2023"                             # prefix for output files
-
-# =============================================================================
 # 1. Load data
 # =============================================================================
 
 message("Loading survey design and dental visits data...")
-design_analysis <- readRDS(design_path)
-design_full     <- readRDS(design_full_path)  # needed for Q3
-dv_raw          <- readRDS(here("data", "dv_2023.rds"))
+design_analysis <- readRDS(design_dlr_rds)
+design_full     <- readRDS(design_full_rds)  # needed for Q3
+dv_raw          <- readRDS(dv_rds)
 
 analytic <- design_analysis$variables
 
 message("  Cohort (", label, "): ",
         format(nrow(analytic), big.mark = ","), " unweighted | ",
-        format(round(sum(analytic$PERWT23F)), big.mark = ","), " weighted")
+        format(round(sum(analytic[[var_weight]])), big.mark = ","), " weighted")
 
 out_path <- function(filename) here("output", paste0(label, "_", filename))
 
 # =============================================================================
-# Q1 — Dental visit frequency (DVTOT23)
+# Q1 — Dental visit frequency
 # =============================================================================
 
 message("\nQ1: Dental visit access and frequency...")
 
-q1_any   <- svymean(~I(as.numeric(DVTOT23 > 0)), design = design_analysis, na.rm = TRUE)
-q1_mean  <- svymean(~DVTOT23,        design = design_analysis, na.rm = TRUE)
-q1_total <- svytotal(~DVTOT23,       design = design_analysis, na.rm = TRUE)
+f_any_visit <- as.formula(paste0("~I(as.numeric(", var_visits, " > 0))"))
+f_visits    <- as.formula(paste0("~", var_visits))
+
+q1_any   <- svymean(f_any_visit, design = design_analysis, na.rm = TRUE)
+q1_mean  <- svymean(f_visits,    design = design_analysis, na.rm = TRUE)
+q1_total <- svytotal(f_visits,   design = design_analysis, na.rm = TRUE)
 
 message("  Weighted prob any visit: ", round(coef(q1_any), 3),
         " (SE: ", round(SE(q1_any), 3), ")")
@@ -87,11 +83,12 @@ message("  Saved: ", out_path("q1_visits.csv"))
 
 message("\nQ2: Dental spending...")
 
-q2_mean <- svymean(~DVTEXP23 + DVTSLF23 + DVTPRV23, design = design_analysis, na.rm = TRUE)
+f_spending <- as.formula(paste0("~", var_totexp, " + ", var_oopexp, " + ", var_prvexp))
+q2_mean <- svymean(f_spending, design = design_analysis, na.rm = TRUE)
 
-message("  Weighted mean total expenditure:   $", round(coef(q2_mean)["DVTEXP23"], 2))
-message("  Weighted mean OOP expenditure:     $", round(coef(q2_mean)["DVTSLF23"], 2))
-message("  Weighted mean insurer payout:      $", round(coef(q2_mean)["DVTPRV23"], 2))
+message("  Weighted mean total expenditure:   $", round(coef(q2_mean)[var_totexp], 2))
+message("  Weighted mean OOP expenditure:     $", round(coef(q2_mean)[var_oopexp], 2))
+message("  Weighted mean insurer payout:      $", round(coef(q2_mean)[var_prvexp], 2))
 
 q2_ci <- confint(q2_mean)
 
@@ -106,7 +103,7 @@ write_csv(q2_out, out_path("q2_spending.csv"))
 message("  Saved: ", out_path("q2_spending.csv"))
 
 # =============================================================================
-# Q3 — Dental service mix (from event-level file HC-248B)
+# Q3 — Dental service mix (from event-level file)
 # =============================================================================
 
 message("\nQ3: Dental service mix...")
@@ -120,14 +117,15 @@ procedure_vars <- c(
 existing_proc_vars <- intersect(procedure_vars, names(dv_raw))
 
 if (length(existing_proc_vars) == 0) {
-  stop("No procedure variables found in HC-248B. ",
-       "Verify the file against the HC-248B codebook for this panel year.")
+  stop("No procedure variables found in dental visits file. ",
+       "Verify the file against the codebook for this panel year.")
 }
 
 # Collapse visit-level flags to person level: did this person have *any* visit
-# of each type? HC-248B has no visit-level weights; the AHRQ-recommended
-# approach is to aggregate to person level and apply person weights via the
-# design object. This also avoids inflating proportions for frequent visitors.
+# of each type? The dental visits file has no visit-level weights; the
+# AHRQ-recommended approach is to aggregate to person level and apply person
+# weights via the design object. This also avoids inflating proportions for
+# frequent visitors.
 dv_person <- dv_raw |>
   select(DUPERSID, all_of(existing_proc_vars)) |>
   group_by(DUPERSID) |>
@@ -148,14 +146,17 @@ fyc_q3 <- design_full$variables |>
   mutate(across(all_of(existing_proc_vars),
                 ~ replace_na(.x, 0L)))  # persons with no dental visits → 0
 
+weight_formula <- as.formula(paste0("~", var_weight))
+
 design_q3 <- svydesign(
   id      = ~VARPSU,
   strata  = ~VARSTR,
-  weights = ~PERWT23F,
+  weights = weight_formula,
   data    = fyc_q3,
   nest    = TRUE
 )
-design_q3 <- subset(design_q3, DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
+design_q3 <- subset(design_q3,
+                    eval(parse(text = paste0(var_dntins1, " == 1 | ", var_dntins2, " == 1"))))
 
 svy_formula_q3 <- as.formula(paste("~", paste(existing_proc_vars, collapse = " + ")))
 q3_means <- svymean(svy_formula_q3, design = design_q3, na.rm = TRUE)
@@ -205,7 +206,8 @@ p_mix <- service_props |>
     subtitle = paste0("n persons (DLR cohort) = ", format(nrow(analytic), big.mark = ",")),
     x        = NULL,
     y        = "Proportion of persons with any visit of type",
-    caption  = "Source: MEPS HC-248B + HC-251. Person-level weighted prevalence."
+    caption  = paste0("Source: MEPS dental visits + FYC ", year,
+                      ". Person-level weighted prevalence.")
   ) +
   theme_minimal(base_size = 12) +
   theme(plot.title = element_text(face = "bold"))
@@ -219,15 +221,21 @@ message("  Saved: ", out_path("service_mix.png"))
 
 message("\nFitting covariate-adjusted models...")
 
-fit_q1_any <- svyglm(update(formula_apriori, I(DVTOT23 > 0) ~ .),
+f_q1_any <- as.formula(paste0("I(", var_visits, " > 0) ~ ."))
+f_q1     <- as.formula(paste0(var_visits, " ~ ."))
+f_q2a    <- as.formula(paste0("log(", var_totexp, " + 1) ~ ."))
+f_q2b    <- as.formula(paste0("log(", var_oopexp, " + 1) ~ ."))
+f_q2c    <- as.formula(paste0("log(", var_prvexp, " + 1) ~ ."))
+
+fit_q1_any <- svyglm(update(formula_apriori, f_q1_any),
                      design = design_analysis, family = quasibinomial())
-fit_q1     <- svyglm(update(formula_apriori, DVTOT23 ~ .),
+fit_q1     <- svyglm(update(formula_apriori, f_q1),
                      design = design_analysis, family = quasipoisson())
-fit_q2a    <- svyglm(update(formula_apriori, log(DVTEXP23 + 1) ~ .),
+fit_q2a    <- svyglm(update(formula_apriori, f_q2a),
                      design = design_analysis, family = gaussian())
-fit_q2b    <- svyglm(update(formula_apriori, log(DVTSLF23 + 1) ~ .),
+fit_q2b    <- svyglm(update(formula_apriori, f_q2b),
                      design = design_analysis, family = gaussian())
-fit_q2c    <- svyglm(update(formula_apriori, log(DVTPRV23 + 1) ~ .),
+fit_q2c    <- svyglm(update(formula_apriori, f_q2c),
                      design = design_analysis, family = gaussian())
 
 tbl_models <- tbl_merge(
@@ -247,7 +255,7 @@ tbl_models <- tbl_merge(
   )
 ) |>
   modify_caption(paste0(
-    "**Covariate-adjusted models (2023 baseline) — ", label, "**<br>",
+    "**Covariate-adjusted models — ", label, "**<br>",
     "OR = odds ratio; IRR = incidence rate ratio; ",
     "log \u03b2 = coefficient on log(y+1) scale."
   )) |>
@@ -281,7 +289,7 @@ q1_gt <- tibble(
 ) |>
   gt() |>
   tab_header(title = "Q1: Dental visit access and frequency") |>
-  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in 2023.")
+  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in the survey year.")
 
 q2_gt <- tibble(
   Outcome = c("Total expenditures", "Out-of-pocket", "Insurer payout"),
@@ -293,7 +301,8 @@ q2_gt <- tibble(
 ) |>
   gt() |>
   tab_header(title = "Q2: Dental spending (annual per-person)") |>
-  tab_source_note("Survey-weighted. DVTPRV23 is zero for insured individuals with no dental visits.")
+  tab_source_note(paste0("Survey-weighted. ", var_prvexp,
+                         " is zero for insured individuals with no dental visits."))
 
 q3_gt <- service_props |>
   mutate(
@@ -331,10 +340,10 @@ message("  Saved: ", out_path("descriptive.html"))
 message("\nBuilding cohort descriptive table (Table 1)...")
 
 table_vars_candidates <- c(
-  "AGE23X", "SEX", "RACEV2X", "HISPANX",
-  "POVCAT23", "EDUCYR", "EMPST53",
-  "INSURC23", "RTHLTH53",
-  "DVTOT23", "DVTEXP23", "DVTSLF23"
+  var_age, "SEX", "RACEV2X", "HISPANX",
+  var_povcat, "EDUCYR", "EMPST53",
+  var_insurc, "RTHLTH53",
+  var_visits, var_totexp, var_oopexp
 )
 table_vars <- intersect(table_vars_candidates, names(analytic))
 
