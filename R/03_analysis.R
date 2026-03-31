@@ -61,7 +61,7 @@ out_path <- function(filename) here("output", paste0(label, "_", filename))
 
 message("\nQ1: Dental visit access and frequency...")
 
-q1_any   <- svymean(~I(DVTOT23 > 0), design = design_analysis, na.rm = TRUE)
+q1_any   <- svymean(~I(as.numeric(DVTOT23 > 0)), design = design_analysis, na.rm = TRUE)
 q1_mean  <- svymean(~DVTOT23,        design = design_analysis, na.rm = TRUE)
 q1_total <- svytotal(~DVTOT23,       design = design_analysis, na.rm = TRUE)
 
