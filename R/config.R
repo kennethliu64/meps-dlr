@@ -5,7 +5,7 @@
 #
 # Usage in any script:
 #   source(here::here("R", "config.R"))
-#   svyglm(update(formula_apriori, dvtot23 ~ .), design = design_dlr)
+#   svyglm(update(formula_apriori, DVTOT23 ~ .), design = design_dlr)
 # =============================================================================
 
 # =============================================================================
@@ -24,7 +24,7 @@
 covars_apriori <- c("AGE23X", "SEX", "RACEV2X", "POVCAT23", "EMPST53")
 
 # Formula with no left-hand side — use update() to attach an outcome:
-#   update(formula_apriori, dvtot23 ~ .)
+#   update(formula_apriori, DVTOT23 ~ .)
 formula_apriori <- as.formula(
   paste("~", paste(covars_apriori, collapse = " + "))
 )

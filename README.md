@@ -5,8 +5,8 @@ on dental care utilization using MEPS survey data.
 
 ## Research Questions
 
-1. Did dental visit frequency change among DLR-affected MA residents?
-2. Did total dental spending and out-of-pocket spending change?
+1. Did dental care access and visit frequency change among DLR-affected MA residents?
+2. Did total, out-of-pocket, and insurer dental spending change?
 3. Did the mix of dental services utilized change?
 
 ## Design
@@ -41,7 +41,7 @@ Requires R >= 4.3.0. Installs all CRAN dependencies (`haven`, `tidyverse`, `surv
 
 ```r
 source("R/00_setup.R")          # 1. Install/load packages
-source("R/01_download_data.R")  # 2. Load local .ssp files into data/*.rds
+source("R/01_download_data.R")  # 2. Load local .dta files into data/*.rds
 source("R/02_survey_design.R")  # 3. Build survey design objects
 source("R/03_analysis.R")       # 4. Run Q1-Q3 estimates + Table 1 + chart
 ```
@@ -53,12 +53,12 @@ once earlier ones have completed.
 
 | File | Description |
 |------|-------------|
-| `output/<label>_q1_visits.csv` | Weighted mean/total dental visits |
-| `output/<label>_q2_spending.csv` | Weighted mean total + OOP dental spending |
-| `output/<label>_q3_service_mix.csv` | Proportions of each procedure type |
+| `output/<label>_q1_visits.csv` | Weighted probability of any visit + mean/total visit count |
+| `output/<label>_q2_spending.csv` | Weighted mean total, OOP, and insurer dental spending |
+| `output/<label>_q3_service_mix.csv` | Person-level weighted prevalence of each procedure type |
 | `output/<label>_service_mix.png` | Bar chart of service mix |
-| `output/<label>_table1_cohort.html` | Descriptive table of the DLR cohort |
-| `output/<label>_*_adjusted.csv` | Covariate-adjusted model results |
+| `output/<label>_table1_cohort.html` | Survey-weighted descriptive table of the DLR cohort |
+| `output/<label>_*_adjusted.csv` | Covariate-adjusted model results (one file per outcome) |
 
 ## Repository Structure
 
@@ -70,7 +70,7 @@ meps-dlr/
 ├── R/
 │   ├── 00_setup.R          Install + load packages
 │   ├── config.R            A priori covariate set and model formulas
-│   ├── 01_download_data.R  Load .ssp files from data/
+│   ├── 01_download_data.R  Load .dta files from data/
 │   ├── 02_survey_design.R  Build survey design objects
 │   └── 03_analysis.R       Q1-Q3 estimates, Table 1, service mix chart
 ├── data/                   Populated by script 01 — gitignored
@@ -79,7 +79,7 @@ meps-dlr/
 
 ## Switching Between National and State-Level Data
 
-The pipeline is data-agnostic. To analyze a different population, swap the `.ssp`
+The pipeline is data-agnostic. To analyze a different population, swap the `.dta`
 files in `data/` and re-run the scripts. The analysis code doesn't change.
 
 For state-level data (e.g., MA restricted-use file from AHRQ), the file will
@@ -87,10 +87,12 @@ already contain only that state's respondents — no filtering needed.
 
 ## Updating for 2024
 
-When HC-252 is released:
-1. Update local file paths in `01_download_data.R` to the new `.ssp` filenames
-2. Update weight: `PERWT23F` -> `PERWT24F` in `02_survey_design.R`
-3. Stack years and activate the DiD scaffold
+When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released:
+1. Update local file paths in `01_download_data.R` to the new `.dta` filenames
+2. Update weight: `PERWT23F` → `PERWT24F` in `02_survey_design.R`
+3. Update dental insurance filter variables (`DNTINS31_M23`/`DNTINS23_M23` → 2024 equivalents) in `02_survey_design.R` and `03_analysis.R`
+4. Update all outcome variable suffixes `23` → `24` in `03_analysis.R`
+5. Stack years and activate the DiD scaffold
 
 ## Limitations
 
