@@ -39,9 +39,28 @@ dv_raw          <- readRDS(dv_rds)
 
 analytic <- design_analysis$variables
 
+# Pre-compute cohort size in both forms for consistent use in all outputs.
+# - dlr_n          : unweighted respondent count (statistical basis / precision)
+# - dlr_weighted_n : population represented by the cohort (substantive estimate)
+# Standard MEPS reporting convention: show weighted N as the headline figure
+# with unweighted n in parentheses so readers can assess both.
+dlr_n          <- nrow(analytic)
+dlr_weighted_n <- round(sum(analytic[[var_weight]]))
+
+fmt_pop <- function(x) {
+  if (x >= 1e6) paste0(format(round(x / 1e6, 1), nsmall = 1), "M")
+  else if (x >= 1e3) paste0(format(round(x / 1e3, 1), nsmall = 1), "K")
+  else format(round(x), big.mark = ",")
+}
+
+dlr_n_label <- paste0(
+  "Weighted N\u2009=\u2009", fmt_pop(dlr_weighted_n),
+  " (unweighted n\u2009=\u2009", format(dlr_n, big.mark = ","), ")"
+)
+
 message("  Cohort (", label, "): ",
-        format(nrow(analytic), big.mark = ","), " unweighted | ",
-        format(round(sum(analytic[[var_weight]])), big.mark = ","), " weighted")
+        format(dlr_n, big.mark = ","), " unweighted | ",
+        fmt_pop(dlr_weighted_n), " weighted")
 
 out_path <- function(filename) here("output", paste0(label, "_", filename))
 
@@ -203,7 +222,7 @@ p_mix <- service_props |>
                      expand = expansion(mult = c(0, 0.15))) +
   labs(
     title    = paste0("Dental service mix — ", label),
-    subtitle = paste0("n persons (DLR cohort) = ", format(nrow(analytic), big.mark = ",")),
+    subtitle = paste0("DLR cohort \u2014 ", dlr_n_label),
     x        = NULL,
     y        = "Proportion of persons with any visit of type",
     caption  = paste0("Source: MEPS dental visits + FYC ", year,
@@ -289,7 +308,10 @@ q1_gt <- tibble(
 ) |>
   gt() |>
   tab_header(title = "Q1: Dental visit access and frequency") |>
-  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in the survey year.")
+  tab_source_note(paste0(
+    "Survey-weighted. DLR cohort: individuals with dental insurance at any point in the survey year. ",
+    dlr_n_label, "."
+  ))
 
 q2_gt <- tibble(
   Outcome = c("Total expenditures", "Out-of-pocket", "Insurer payout"),
@@ -301,8 +323,10 @@ q2_gt <- tibble(
 ) |>
   gt() |>
   tab_header(title = "Q2: Dental spending (annual per-person)") |>
-  tab_source_note(paste0("Survey-weighted. ", var_prvexp,
-                         " is zero for insured individuals with no dental visits."))
+  tab_source_note(paste0(
+    "Survey-weighted. ", var_prvexp, " is zero for insured individuals with no dental visits. ",
+    dlr_n_label, "."
+  ))
 
 q3_gt <- service_props |>
   mutate(
@@ -316,7 +340,10 @@ q3_gt <- service_props |>
   select(Procedure, Prevalence, `95% CI`) |>
   gt() |>
   tab_header(title = "Q3: Dental service mix") |>
-  tab_source_note("Person-level weighted prevalence: proportion of DLR cohort with any visit of each type.")
+  tab_source_note(paste0(
+    "Person-level weighted prevalence: proportion of DLR cohort with any visit of each type. ",
+    dlr_n_label, "."
+  ))
 
 writeLines(
   paste0(
@@ -324,6 +351,7 @@ writeLines(
     "<style>body{font-family:sans-serif;margin:2em;max-width:900px}</style>",
     "</head><body>",
     "<h1>Descriptive Results \u2014 ", label, "</h1>",
+    "<p style='color:#555;margin-top:-0.5em'>", dlr_n_label, "</p>",
     gt::as_raw_html(q1_gt), "<br>",
     gt::as_raw_html(q2_gt), "<br>",
     gt::as_raw_html(q3_gt),
