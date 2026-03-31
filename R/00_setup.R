@@ -5,25 +5,10 @@
 # Every other script calls source("R/00_setup.R") at the top.
 # =============================================================================
 
-# ---- Install remotes (needed to install MEPS from GitHub) -------------------
-
-if (!requireNamespace("remotes", quietly = TRUE)) {
-  install.packages("remotes")
-}
-
-# ---- Install the MEPS R package from HHS-AHRQ GitHub -----------------------
-# This package provides read_MEPS(year, type) which pulls files directly
-# from the AHRQ website and caches them locally — no manual download needed.
-
-if (!requireNamespace("MEPS", quietly = TRUE)) {
-  message("Installing MEPS package from GitHub (HHS-AHRQ/MEPS)...")
-  remotes::install_github("HHS-AHRQ/MEPS")
-}
-
 # ---- CRAN packages ----------------------------------------------------------
 
 required_packages <- c(
-  "MEPS",        # Read MEPS files directly from AHRQ (read_MEPS)
+  "haven",       # Read SAS transport (.ssp / .xpt) files from AHRQ
   "tidyverse",   # Data manipulation and visualization
   "survey",      # Complex survey-weighted regression (svyglm, svydesign)
   "srvyr",       # Tidy (dplyr-style) interface to the survey package

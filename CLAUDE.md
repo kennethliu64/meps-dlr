@@ -61,8 +61,8 @@ All estimates are **intention-to-treat** and likely attenuated toward null.
 
 ## State identifier
 
-The public-use MEPS file may not include a state variable. `02_survey_design.R` has a
-`has_state <- FALSE` flag at the top. Set it to `TRUE` once you have the restricted-use
+The public-use MEPS file may not include a state variable. `03_analysis.R` has a
+`scope` variable at the top. Set `scope <- "ma"` once you have the restricted-use
 file with `STATECD`. Massachusetts FIPS code = **25**.
 
 ## Scripts (run in order)
@@ -70,11 +70,19 @@ file with `STATECD`. Massachusetts FIPS code = **25**.
 ```
 R/00_setup.R            # Install + load packages (run once)
 R/config.R              # A priori covariate sets and model formulas (sourced by analysis scripts)
-R/01_download_data.R    # Download HC-251 + HC-248B via MEPS R package → data/*.rds
+R/01_download_data.R    # Load HC-251 + HC-248B from local .ssp files → data/*.rds
 R/02_survey_design.R    # Build full / DLR survey designs → data/*.rds
-R/03_dummy_analysis.R   # Q1–Q3 estimates + adjusted models + Table 1 → output/
-R/04_ma_analysis.R      # MA-specific analysis (requires restricted-use file)
+R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → output/
+                        #   scope = "national" (default) or "ma" (restricted-use)
 ```
+
+## Data setup
+
+Download .ssp files from AHRQ and place them in `data/`:
+- `h251.ssp` — HC-251 Full-Year Consolidated 2023
+- `h248b.ssp` — HC-248B Dental Visits 2023
+
+Update filenames in `01_download_data.R` if yours differ.
 
 ## Covariate sets (defined in config.R)
 
@@ -88,7 +96,7 @@ Access as formulas via `formula_apriori` and `formula_extended`. Attach an outco
 ## Updating for 2024
 
 When HC-252 (2024 FYC) is released:
-1. Change `year = 2023` → `year = 2024` in `01_download_data.R`
+1. Update local file paths in `01_download_data.R` to the new .ssp filenames
 2. Update weight variable: `PERWT23F` → `PERWT24F` in `02_survey_design.R`
 3. Stack 2023 + 2024 data and activate the DiD model structure (see scaffold in a future
    `04_did_models.R` script)
