@@ -159,7 +159,7 @@ Once available, a new `R/04_synthetic_control.R` script will:
 
 ## Limitations
 
-- **Self-insured misclassification**: MEPS cannot distinguish self-insured (ERISA; state-exempt)
-  from fully-insured plans. ITT attenuation expected.
+- **Self-insured misclassification**: MEPS cannot distinguish self-insured (DLR-exempt)
+  from fully-insured plans. Attenuation expected.
 - **No premiums data**: MEPS does not contain premium information. Annual reporting under
   211 CMR 156.07 may be a complementary source.
