@@ -5,8 +5,8 @@
 
 # --- Required: set year and filenames ----------------------------------------
 year     <- 2023L        # Survey year
-fyc_file <- "h251.dta"  # FYC filename in data/  (HC-251 for 2023)
-dv_file  <- "h248b.dta" # Dental visits filename  (HC-248B for 2023)
+fyc_file <- "h251.dta"  # FYC filename in data/  (HC-251 for 2023, h243 for 2022)
+dv_file  <- "h248b.dta" # Dental visits filename  (HC-248B for 2023,h239b for 2022)
 
 # --- Optional: override dental insurance filter variables --------------------
 # The pipeline auto-derives these from `year` (e.g. DNTINS31_M23).
