@@ -13,49 +13,66 @@ on dental care utilization using MEPS survey data.
 
 Pre-post (and eventually difference-in-differences) using MEPS 2023 (pre) and 2024 (post,
 pending data release). The DLR cohort is defined as individuals with dental insurance at
-any point in 2023 (`DNTINS31_M23 == 1 | DNTINS23_M23 == 1`).
+any point in the survey year.
 
 > All estimates are **intention-to-treat**: MEPS does not distinguish self-insured
 > (ERISA-exempt) from fully-insured plans, so effects are likely attenuated toward null.
 
 ## Data Sources
 
-| File | MEPS Name | Description |
-|------|-----------|-------------|
-| HC-251 | FYC 2023 | Full-Year Consolidated Person-Level File |
-| HC-248B | DV 2023 | Dental Visits Event-Level File |
+Download the **Stata format** (`.dta`) zip files from AHRQ, unzip, and place the `.dta`
+files in `data/`:
 
-Download the **Stata format** (`.dta`) zip files from AHRQ, unzip, and place the `.dta` files in `data/`:
-
-| File | Data | Codebook |
-|------|------|----------|
-| HC-251 | [h251dta.zip](https://meps.ahrq.gov/data_files/pufs/h251/h251dta.zip) | [h251cb.pdf](https://meps.ahrq.gov/data_files/pufs/h251/h251cb.pdf) |
-| HC-248B | [h248bdta.zip](https://meps.ahrq.gov/data_files/pufs/h248b/h248bdta.zip) | [h248bcb.pdf](https://meps.ahrq.gov/data_files/pufs/h248b/h248bcb.pdf) |
-
-Update filenames in `R/01_download_data.R` if yours differ.
+| File | Data | Codebook | Description |
+|------|------|----------|-------------|
+| HC-251 | [h251dta.zip](https://meps.ahrq.gov/data_files/pufs/h251/h251dta.zip) | [h251cb.pdf](https://meps.ahrq.gov/data_files/pufs/h251/h251cb.pdf) | FYC 2023 — Full-Year Consolidated |
+| HC-248B | [h248bdta.zip](https://meps.ahrq.gov/data_files/pufs/h248b/h248bdta.zip) | [h248bcb.pdf](https://meps.ahrq.gov/data_files/pufs/h248b/h248bcb.pdf) | Dental Visits 2023 |
 
 ## Setup
 
+Requires R >= 4.3.0. Install all dependencies once:
+
 ```r
-# Install all packages (run once)
 source("R/00_setup.R")
 ```
 
-Requires R >= 4.3.0. Installs all CRAN dependencies (`haven`, `tidyverse`, `survey`, etc.).
-
 ## Running the Analysis
 
+**Step 1.** Edit the config block at the top of `run_all.R`:
+
 ```r
-source("R/00_setup.R")          # 1. Install/load packages
-source("R/01_download_data.R")  # 2. Load local .dta files into data/*.rds
-source("R/02_survey_design.R")  # 3. Build survey design objects
-source("R/03_analysis.R")       # 4. Run Q1-Q3 estimates + Table 1 + chart
+year     <- 2023L        # Survey year
+fyc_file <- "h251.dta"  # FYC filename in data/
+dv_file  <- "h248b.dta" # Dental visits filename in data/
 ```
 
-Each script saves `.rds` files to `data/` so later scripts can be run independently
-once earlier ones have completed.
+**Step 2.** Source the pipeline:
+
+```r
+source("run_all.R")
+```
+
+That's it. `run_all.R` sources all four scripts in order. All variable names, file paths,
+and output labels are derived automatically from `year` via `R/config.R` — no other files
+need editing when changing the survey year.
+
+### Running individual scripts
+
+Each script can also be sourced standalone (it will default to `year = 2023`):
+
+```r
+source("R/01_download_data.R")  # Load .dta files → data/*.rds
+source("R/02_survey_design.R")  # Build survey design objects → data/*.rds
+source("R/03_analysis.R")       # Q1–Q3 estimates, Table 1, chart → output/
+```
+
+Earlier scripts must have been run at least once before later ones, since they produce
+the `.rds` files that downstream scripts read.
 
 ## Outputs
+
+All output files are prefixed with `<label>` (e.g. `dlr_2023`) so runs for different
+years never overwrite each other.
 
 | File | Description |
 |------|-------------|
@@ -71,15 +88,16 @@ once earlier ones have completed.
 
 ```
 meps-dlr/
+├── run_all.R               Pipeline entry point — edit year/filenames here
 ├── CLAUDE.md               Project context for Claude Code
 ├── README.md
 ├── .gitignore
 ├── R/
 │   ├── 00_setup.R          Install + load packages
-│   ├── config.R            A priori covariate set and model formulas
+│   ├── config.R            Derives all variable names from year (sourced automatically)
 │   ├── 01_download_data.R  Load .dta files from data/
 │   ├── 02_survey_design.R  Build survey design objects
-│   └── 03_analysis.R       Q1-Q3 estimates, Table 1, service mix chart
+│   └── 03_analysis.R       Q1–Q3 estimates, Table 1, service mix chart
 ├── data/                   Populated by script 01 — gitignored
 └── output/                 Populated by script 03 — gitignored
 ```
@@ -87,15 +105,15 @@ meps-dlr/
 ## Switching Between National and State-Level Data
 
 The pipeline is data-agnostic. To analyze a different population, swap the `.dta`
-files in `data/` and re-run the scripts. The analysis code doesn't change.
+files in `data/` and update the filenames in `run_all.R`. The analysis code doesn't change.
 
 For state-level data (e.g., MA restricted-use file from AHRQ), the file will
 already contain only that state's respondents — no filtering needed.
 
 ## Updating for 2024
 
-When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit the
-three lines at the top of `run_all.R`:
+When HC-252 (2024 FYC) and HC-249B (2024 Dental Visits) are released, edit
+the config block at the top of `run_all.R`:
 
 ```r
 year     <- 2024L
@@ -103,12 +121,12 @@ fyc_file <- "h252.dta"   # update to actual FYC filename
 dv_file  <- "h249b.dta"  # update to actual dental visits filename
 ```
 
-All variable names, file paths, and output labels derive from `year` automatically
-via `R/config.R`. No other files need editing for a standard year update.
+Then `source("run_all.R")`. All variable names, paths, and output labels update automatically.
 
-> **Note on dental insurance filter variables**: The `DNTINS` variable naming
-> pattern (`DNTINS31_M{yr}` / `DNTINS23_M{yr}`) has been stable across recent
-> panel years. Verify against the 2024 codebook before running.
+> **Dental insurance filter variables**: The pipeline auto-derives the `DNTINS` variable
+> names from `year`. If those names don't exist in your file, `01_download_data.R` will
+> print every `DNTINS*` variable it finds and tell you what to set. Uncomment and edit
+> `dntins1_override` / `dntins2_override` in `run_all.R`, then re-run.
 
 ## Limitations
 
