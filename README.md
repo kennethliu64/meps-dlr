@@ -59,12 +59,13 @@ once earlier ones have completed.
 
 | File | Description |
 |------|-------------|
-| `output/<label>_q1_visits.csv` | Weighted probability of any visit + mean/total visit count |
-| `output/<label>_q2_spending.csv` | Weighted mean total, OOP, and insurer dental spending |
-| `output/<label>_q3_service_mix.csv` | Person-level weighted prevalence of each procedure type |
-| `output/<label>_service_mix.png` | Bar chart of service mix |
-| `output/<label>_table1_cohort.html` | Survey-weighted descriptive table of the DLR cohort |
-| `output/<label>_*_adjusted.csv` | Covariate-adjusted model results (one file per outcome) |
+| `output/<label>_table1_cohort.html` | Survey-weighted cohort characteristics |
+| `output/<label>_descriptive.html` | Formatted Q1/Q2/Q3 results with % and $ formatting |
+| `output/<label>_models.html` | All 5 covariate-adjusted models in one table |
+| `output/<label>_service_mix.png` | Bar chart of dental procedure mix |
+| `output/<label>_q1_visits.csv` | Raw Q1 estimates (programmatic use) |
+| `output/<label>_q2_spending.csv` | Raw Q2 estimates (programmatic use) |
+| `output/<label>_q3_service_mix.csv` | Raw Q3 estimates (programmatic use) |
 
 ## Repository Structure
 

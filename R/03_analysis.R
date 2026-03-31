@@ -13,16 +13,13 @@
 #
 # Input:  data/<your_design>.rds   (from 02_survey_design.R)
 #         data/dv_2023.rds         (from 01_download_data.R)
-# Output: output/<label>_table1_cohort.html
-#         output/<label>_service_mix.png
-#         output/<label>_q1_visits.csv              (prob any visit + mean + total)
-#         output/<label>_q2_spending.csv            (total + OOP + insurer payout)
-#         output/<label>_q3_service_mix.csv
-#         output/<label>_q1_any_visit_adjusted.csv
-#         output/<label>_q1_visit_count_adjusted.csv
-#         output/<label>_q2a_total_spend_adjusted.csv
-#         output/<label>_q2b_oop_spend_adjusted.csv
-#         output/<label>_q2c_insurer_payout_adjusted.csv
+# Output: output/<label>_table1_cohort.html   — survey-weighted cohort characteristics
+#         output/<label>_descriptive.html     — formatted Q1/Q2/Q3 results (human-readable)
+#         output/<label>_models.html          — all 5 adjusted models in one table
+#         output/<label>_service_mix.png      — bar chart of procedure mix
+#         output/<label>_q1_visits.csv        — raw Q1 estimates (programmatic use)
+#         output/<label>_q2_spending.csv      — raw Q2 estimates (programmatic use)
+#         output/<label>_q3_service_mix.csv   — raw Q3 estimates (programmatic use)
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
@@ -233,19 +230,99 @@ fit_q2b    <- svyglm(update(formula_apriori, log(DVTSLF23 + 1) ~ .),
 fit_q2c    <- svyglm(update(formula_apriori, log(DVTPRV23 + 1) ~ .),
                      design = design_analysis, family = gaussian())
 
-models <- list(
-  list(fit = fit_q1_any, name = "q1_any_visit"),
-  list(fit = fit_q1,     name = "q1_visit_count"),
-  list(fit = fit_q2a,    name = "q2a_total_spend"),
-  list(fit = fit_q2b,    name = "q2b_oop_spend"),
-  list(fit = fit_q2c,    name = "q2c_insurer_payout")
-)
+tbl_models <- tbl_merge(
+  list(
+    tbl_regression(fit_q1_any, exponentiate = TRUE),
+    tbl_regression(fit_q1,     exponentiate = TRUE),
+    tbl_regression(fit_q2a,    exponentiate = FALSE),
+    tbl_regression(fit_q2b,    exponentiate = FALSE),
+    tbl_regression(fit_q2c,    exponentiate = FALSE)
+  ),
+  tab_spanner = c(
+    "**Any visit** (OR)",
+    "**Visit count** (IRR)",
+    "**Total spend** (log \u03b2)",
+    "**OOP spend** (log \u03b2)",
+    "**Insurer payout** (log \u03b2)"
+  )
+) |>
+  modify_caption(paste0(
+    "**Covariate-adjusted models (2023 baseline) — ", label, "**<br>",
+    "OR = odds ratio; IRR = incidence rate ratio; ",
+    "log \u03b2 = coefficient on log(y+1) scale."
+  )) |>
+  bold_labels()
 
-for (m in models) {
-  out <- broom::tidy(m$fit, conf.int = TRUE)
-  write_csv(out, out_path(paste0(m$name, "_adjusted.csv")))
-  message("  Saved: ", out_path(paste0(m$name, "_adjusted.csv")))
-}
+tbl_models |>
+  as_gt() |>
+  gt::gtsave(out_path("models.html"))
+message("  Saved: ", out_path("models.html"))
+
+# =============================================================================
+# Formatted descriptive results (Q1 + Q2 + Q3 in one HTML)
+# =============================================================================
+
+message("\nBuilding formatted descriptive results...")
+
+q3_ci <- confint(q3_means)
+
+q1_gt <- tibble(
+  Metric = c("Any dental visit", "Mean visits per person", "Total visits (population)"),
+  Estimate = c(
+    scales::percent(coef(q1_any),    accuracy = 0.1),
+    sprintf("%.2f",                  coef(q1_mean)),
+    scales::comma(round(            coef(q1_total)))
+  ),
+  `95% CI` = c(
+    paste0(scales::percent(q1_ci_any[, 1],   0.1), "\u2013", scales::percent(q1_ci_any[, 2],   0.1)),
+    paste0(sprintf("%.2f", q1_ci_mean[, 1]),  "\u2013", sprintf("%.2f", q1_ci_mean[, 2])),
+    paste0(scales::comma(round(q1_ci_total[, 1])), "\u2013", scales::comma(round(q1_ci_total[, 2])))
+  )
+) |>
+  gt() |>
+  tab_header(title = "Q1: Dental visit access and frequency") |>
+  tab_source_note("Survey-weighted. DLR cohort: individuals with dental insurance at any point in 2023.")
+
+q2_gt <- tibble(
+  Outcome = c("Total expenditures", "Out-of-pocket", "Insurer payout"),
+  `Mean (survey-weighted)` = scales::dollar(coef(q2_mean), accuracy = 1),
+  `95% CI` = paste0(
+    scales::dollar(q2_ci[, 1], accuracy = 1), "\u2013",
+    scales::dollar(q2_ci[, 2], accuracy = 1)
+  )
+) |>
+  gt() |>
+  tab_header(title = "Q2: Dental spending (annual per-person)") |>
+  tab_source_note("Survey-weighted. DVTPRV23 is zero for insured individuals with no dental visits.")
+
+q3_gt <- service_props |>
+  mutate(
+    Procedure  = service_labels[as.character(procedure)],
+    Prevalence = scales::percent(proportion, accuracy = 0.1),
+    `95% CI`   = paste0(
+      scales::percent(pmax(0, q3_ci[as.character(procedure), 1]), 0.1), "\u2013",
+      scales::percent(q3_ci[as.character(procedure), 2], 0.1)
+    )
+  ) |>
+  select(Procedure, Prevalence, `95% CI`) |>
+  gt() |>
+  tab_header(title = "Q3: Dental service mix") |>
+  tab_source_note("Person-level weighted prevalence: proportion of DLR cohort with any visit of each type.")
+
+writeLines(
+  paste0(
+    "<!DOCTYPE html><html><head>",
+    "<style>body{font-family:sans-serif;margin:2em;max-width:900px}</style>",
+    "</head><body>",
+    "<h1>Descriptive Results \u2014 ", label, "</h1>",
+    gt::as_raw_html(q1_gt), "<br>",
+    gt::as_raw_html(q2_gt), "<br>",
+    gt::as_raw_html(q3_gt),
+    "</body></html>"
+  ),
+  out_path("descriptive.html")
+)
+message("  Saved: ", out_path("descriptive.html"))
 
 # =============================================================================
 # Descriptive Table 1
