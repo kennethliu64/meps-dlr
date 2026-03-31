@@ -152,8 +152,11 @@ dv_file  <- "h249b.dta"
 All variable names, paths, and output labels derive from `year` automatically.
 No other files need editing for a standard year update.
 
-> **Verify dental insurance filter variables**: The pattern in `config.R` is
-> `DNTINS31_M{yr}` / `DNTINS23_M{yr}`. Check against the HC-252 codebook before running.
+> **Dental insurance filter variables**: The pipeline auto-derives
+> `DNTINS31_M{yr}` / `DNTINS23_M{yr}` from `year`. If these names don't exist in
+> the file, `01_download_data.R` will print every `DNTINS*` variable it finds and
+> tell you exactly what to set. Uncomment and edit `dntins1_override` /
+> `dntins2_override` in `run_all.R` with the correct names, then re-run.
 
 After running both years separately, stack 2023 + 2024 data and activate the DiD
 model structure.
