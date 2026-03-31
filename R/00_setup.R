@@ -8,7 +8,6 @@
 # ---- CRAN packages ----------------------------------------------------------
 
 required_packages <- c(
-  "haven",       # Read SAS transport (.ssp / .xpt) files from AHRQ
   "tidyverse",   # Data manipulation and visualization
   "survey",      # Complex survey-weighted regression (svyglm, svydesign)
   "srvyr",       # Tidy (dplyr-style) interface to the survey package
