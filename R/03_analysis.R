@@ -367,13 +367,9 @@ message("  Saved: ", out_path("descriptive.html"))
 
 message("\nBuilding cohort descriptive table (Table 1)...")
 
-table_vars_candidates <- c(
-  var_age, "SEX", "RACEV2X", "HISPANX",
-  var_povcat, "EDUCYR", "EMPST53",
-  var_insurc, "RTHLTH53",
-  var_visits, var_totexp, var_oopexp
-)
-table_vars <- intersect(table_vars_candidates, names(analytic))
+# Table 1 shows exactly the covariates used in the regression models —
+# no more, no less. Outcomes are reported separately in descriptive.html.
+table_vars <- intersect(covars_apriori, names(analytic))
 
 tbl <- design_analysis |>
   tbl_svysummary(
