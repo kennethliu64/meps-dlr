@@ -39,7 +39,7 @@ if (!file.exists(local_fyc_path)) {
        "\nand place it in data/.")
 }
 
-fyc_raw <- foreign::read.xport(local_fyc_path)
+fyc_raw <- Hmisc::sasxport.get(local_fyc_path)
 message("  Rows: ", nrow(fyc_raw), " | Cols: ", ncol(fyc_raw))
 
 # Convert all variable names to uppercase for consistent access
@@ -82,7 +82,7 @@ if (!file.exists(local_dv_path)) {
        "\nand place it in data/.")
 }
 
-dv_raw <- foreign::read.xport(local_dv_path)
+dv_raw <- Hmisc::sasxport.get(local_dv_path)
 message("  Rows: ", nrow(dv_raw), " | Cols: ", ncol(dv_raw))
 
 names(dv_raw) <- toupper(names(dv_raw))
