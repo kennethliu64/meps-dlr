@@ -1,29 +1,26 @@
 # =============================================================================
 # 03_analysis.R
-# Weighted estimates for all three research questions using the MEPS survey
-# design objects from 02_survey_design.R.
+# Weighted estimates for all three research questions.
 #
-# Supports two scopes — set the `scope` variable below:
-#
-#   scope = "national"  — full U.S. DLR cohort (public-use file, default)
-#   scope = "ma"        — Massachusetts only (requires restricted-use file
-#                          with STATECD; MA FIPS = 25)
+# Point `design_path` at whichever design object you want to analyze —
+# the analysis is identical regardless of whether the cohort is national,
+# state-level, or any other subpopulation. Build the design you need in
+# 02_survey_design.R, save it as an .rds, and point this script at it.
 #
 # Q1: Dental visit frequency (DVTOT23)
 # Q2: Total and out-of-pocket dental expenditures (DVTEXP23, DVTSLF23)
 # Q3: Dental service mix (procedure flags from HC-248B)
 #
-# Input:  data/design_full_2023.rds   (from 02_survey_design.R)
-#         data/design_dlr_2023.rds    (from 02_survey_design.R)
-#         data/dv_2023.rds            (from 01_download_data.R)
-# Output: output/<scope>_table1_cohort.html
-#         output/<scope>_service_mix.png
-#         output/<scope>_q1_visits.csv
-#         output/<scope>_q2_spending.csv
-#         output/<scope>_q3_service_mix.csv
-#         output/<scope>_q1_visits_adjusted.csv
-#         output/<scope>_q2a_total_spend_adjusted.csv
-#         output/<scope>_q2b_oop_spend_adjusted.csv
+# Input:  data/<your_design>.rds   (from 02_survey_design.R)
+#         data/dv_2023.rds         (from 01_download_data.R)
+# Output: output/<label>_table1_cohort.html
+#         output/<label>_service_mix.png
+#         output/<label>_q1_visits.csv
+#         output/<label>_q2_spending.csv
+#         output/<label>_q3_service_mix.csv
+#         output/<label>_q1_visits_adjusted.csv
+#         output/<label>_q2a_total_spend_adjusted.csv
+#         output/<label>_q2b_oop_spend_adjusted.csv
 # =============================================================================
 
 source(here::here("R", "00_setup.R"))
@@ -32,50 +29,27 @@ source(here::here("R", "config.R"))
 dir.create(here("output"), showWarnings = FALSE)
 
 # =============================================================================
-# Configuration — set scope here
+# Configuration — change these two lines to switch cohorts
 # =============================================================================
 
-scope <- "national"   # "national" or "ma"
-
-# State variable name (only used when scope = "ma")
-state_var <- "STATECD"
+design_path <- here("data", "design_dlr_2023.rds")  # path to design object
+label       <- "dlr_2023"                            # prefix for output files
 
 # =============================================================================
-# 1. Load data and build the analysis design
+# 1. Load data
 # =============================================================================
 
 message("Loading survey design and dental visits data...")
-design_full <- readRDS(here("data", "design_full_2023.rds"))
-design_dlr  <- readRDS(here("data", "design_dlr_2023.rds"))
-dv_raw      <- readRDS(here("data", "dv_2023.rds"))
-
-if (scope == "ma") {
-  # Verify state variable exists
-  if (!state_var %in% names(design_full$variables)) {
-    stop("State variable '", state_var, "' not found in design data.\n",
-         "The public-use file does not include state identifiers.\n",
-         "Use scope = \"national\" or provide the restricted-use file.")
-  }
-
-  message("Scope: MA — subsetting to ", state_var, " == 25 with dental insurance...")
-  design_analysis <- subset(design_full,
-                            design_full$variables[[state_var]] == 25 &
-                              (DNTINS31_M23 == 1 | DNTINS23_M23 == 1))
-  scope_label <- "MA DLR cohort"
-} else {
-  message("Scope: National DLR cohort...")
-  design_analysis <- design_dlr
-  scope_label <- "National DLR cohort"
-}
+design_analysis <- readRDS(design_path)
+dv_raw          <- readRDS(here("data", "dv_2023.rds"))
 
 analytic <- design_analysis$variables
 
-message("  ", scope_label, ": ",
+message("  Cohort (", label, "): ",
         format(nrow(analytic), big.mark = ","), " unweighted | ",
         format(round(sum(analytic$PERWT23F)), big.mark = ","), " weighted")
 
-# Helper: prefix output filenames with scope
-out_path <- function(filename) here("output", paste0(scope, "_", filename))
+out_path <- function(filename) here("output", paste0(label, "_", filename))
 
 # =============================================================================
 # Q1 — Dental visit frequency (DVTOT23)
@@ -172,8 +146,8 @@ service_labels <- c(
 )
 
 p_mix <- service_props |>
-  mutate(label = service_labels[as.character(procedure)]) |>
-  ggplot(aes(x = reorder(label, proportion), y = proportion)) +
+  mutate(proc_label = service_labels[as.character(procedure)]) |>
+  ggplot(aes(x = reorder(proc_label, proportion), y = proportion)) +
   geom_col(fill = "#2166ac", alpha = 0.85) +
   geom_text(aes(label = scales::percent(proportion, accuracy = 0.1)),
             hjust = -0.1, size = 3) +
@@ -181,12 +155,11 @@ p_mix <- service_props |>
   scale_y_continuous(labels = scales::percent_format(),
                      expand = expansion(mult = c(0, 0.15))) +
   labs(
-    title    = paste0("Dental service mix — ", scope_label, ", 2023"),
-    subtitle = paste0("Dentally-insured individuals (n visits = ",
-                      format(nrow(dv_cohort), big.mark = ","), ")"),
+    title    = paste0("Dental service mix — ", label),
+    subtitle = paste0("n visits = ", format(nrow(dv_cohort), big.mark = ",")),
     x        = NULL,
     y        = "Proportion of visits",
-    caption  = "Source: MEPS HC-248B (2023). Visit-level proportions, unweighted."
+    caption  = "Source: MEPS HC-248B. Visit-level proportions, unweighted."
   ) +
   theme_minimal(base_size = 12) +
   theme(plot.title = element_text(face = "bold"))
@@ -200,38 +173,21 @@ message("  Saved: ", out_path("service_mix.png"))
 
 message("\nFitting covariate-adjusted models...")
 
-# Q1 adjusted — dental visit frequency
-fit_q1_apriori  <- svyglm(update(formula_apriori,  DVTOT23 ~ .),
-                           design = design_analysis, family = gaussian())
-fit_q1_extended <- svyglm(update(formula_extended, DVTOT23 ~ .),
-                           design = design_analysis, family = gaussian())
+fit_q1  <- svyglm(update(formula_apriori, DVTOT23 ~ .),
+                  design = design_analysis, family = gaussian())
+fit_q2a <- svyglm(update(formula_apriori, log(DVTEXP23 + 1) ~ .),
+                  design = design_analysis, family = gaussian())
+fit_q2b <- svyglm(update(formula_apriori, log(DVTSLF23 + 1) ~ .),
+                  design = design_analysis, family = gaussian())
 
-# Q2a adjusted — total dental expenditures (log)
-fit_q2a_apriori  <- svyglm(update(formula_apriori,  log(DVTEXP23 + 1) ~ .),
-                            design = design_analysis, family = gaussian())
-fit_q2a_extended <- svyglm(update(formula_extended, log(DVTEXP23 + 1) ~ .),
-                            design = design_analysis, family = gaussian())
-
-# Q2b adjusted — out-of-pocket expenditures (log)
-fit_q2b_apriori  <- svyglm(update(formula_apriori,  log(DVTSLF23 + 1) ~ .),
-                            design = design_analysis, family = gaussian())
-fit_q2b_extended <- svyglm(update(formula_extended, log(DVTSLF23 + 1) ~ .),
-                            design = design_analysis, family = gaussian())
-
-model_pairs <- list(
-  list(apriori = fit_q1_apriori,  extended = fit_q1_extended,
-       name = "q1_visits"),
-  list(apriori = fit_q2a_apriori, extended = fit_q2a_extended,
-       name = "q2a_total_spend"),
-  list(apriori = fit_q2b_apriori, extended = fit_q2b_extended,
-       name = "q2b_oop_spend")
+models <- list(
+  list(fit = fit_q1,  name = "q1_visits"),
+  list(fit = fit_q2a, name = "q2a_total_spend"),
+  list(fit = fit_q2b, name = "q2b_oop_spend")
 )
 
-for (m in model_pairs) {
-  out <- bind_rows(
-    broom::tidy(m$apriori,  conf.int = TRUE) |> mutate(covariate_set = "apriori"),
-    broom::tidy(m$extended, conf.int = TRUE) |> mutate(covariate_set = "extended")
-  )
+for (m in models) {
+  out <- broom::tidy(m$fit, conf.int = TRUE)
   write_csv(out, out_path(paste0(m$name, "_adjusted.csv")))
   message("  Saved: ", out_path(paste0(m$name, "_adjusted.csv")))
 }
@@ -259,7 +215,7 @@ tbl <- analytic |>
     ),
     missing = "ifany"
   ) |>
-  modify_caption(paste0("**Table 1. ", scope_label, " characteristics (unweighted), 2023**")) |>
+  modify_caption(paste0("**Table 1. Cohort characteristics (unweighted) — ", label, "**")) |>
   bold_labels()
 
 tbl |>
@@ -268,4 +224,4 @@ tbl |>
 
 message("  Saved: ", out_path("table1_cohort.html"))
 
-message("\n03_analysis.R complete (scope: ", scope, ").")
+message("\n03_analysis.R complete (", label, ").")

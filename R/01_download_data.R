@@ -66,27 +66,6 @@ if (length(missing_fyc) > 0) {
 }
 message("  All required variables present in HC-251.")
 
-# ---- Check for state variable ----------------------------------------------
-
-state_var_candidates <- c("STATECD", "STATERY23", "STATE23", "STFIPS23")
-state_var <- intersect(state_var_candidates, names(fyc_raw))
-
-if (length(state_var) == 0) {
-  warning(
-    "No state identifier variable found in HC-251 (checked: ",
-    paste(state_var_candidates, collapse = ", "), ").\n",
-    "This is expected for the public-use file. The analysis script will use the ",
-    "national DLR cohort.\n",
-    "Once you have the restricted-use file with STATECD, set scope <- \"ma\" in ",
-    "the analysis script to activate the MA filter."
-  )
-  message("  State variable: NOT FOUND — national DLR cohort will be used.")
-} else {
-  message("  State variable found: ", state_var[1])
-  ma_n <- sum(fyc_raw[[state_var[1]]] == 25, na.rm = TRUE)
-  message("  Rows with state == 25 (MA): ", ma_n)
-}
-
 # ---- Save ------------------------------------------------------------------
 saveRDS(fyc_raw, here("data", "fyc_2023.rds"))
 message("  Saved: data/fyc_2023.rds")

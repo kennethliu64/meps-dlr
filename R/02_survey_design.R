@@ -1,7 +1,7 @@
 # =============================================================================
 # 02_survey_design.R
-# Build the MEPS complex survey design object and create two national-level
-# subpopulation designs for downstream analysis.
+# Build the MEPS complex survey design object and create the DLR
+# subpopulation design for downstream analysis.
 #
 # KEY METHOD NOTE: Subpopulations are created with subset() on the full design,
 # NOT by filtering the data frame before calling svydesign(). Filtering rows
@@ -10,12 +10,12 @@
 # estimates while preserving the design structure.
 #
 # Two design objects are saved:
-#   design_full — full national MEPS sample (all respondents)
-#   design_dlr  — national DLR cohort: had dental insurance at any point in 2023
+#   design_full — all respondents in the input data
+#   design_dlr  — DLR cohort: had dental insurance at any point in 2023
 #                 (DNTINS31_M23 == 1 | DNTINS23_M23 == 1)
 #
-# MA-specific design objects are built in a separate script (04_ma_analysis.R)
-# once the restricted-use file with STATECD is available.
+# The same pipeline works for both the national public-use file and a
+# state-specific restricted-use file — just swap the .ssp in data/.
 #
 # Input:  data/fyc_2023.rds  (from 01_download_data.R)
 # Output: data/design_full_2023.rds
@@ -41,7 +41,7 @@ message("  Rows: ", nrow(fyc))
 #   weights = PERWT23F — final person-level analysis weight
 #   nest    = TRUE    — PSU IDs restart within each stratum (required for MEPS)
 
-message("Building full national survey design...")
+message("Building full survey design...")
 
 design_full <- svydesign(
   id      = ~VARPSU,
@@ -51,7 +51,7 @@ design_full <- svydesign(
   nest    = TRUE
 )
 
-message("  Full design: ",
+message("  Design: ",
         format(nrow(fyc), big.mark = ","), " persons | ",
         "Weighted N: ", format(round(sum(fyc$PERWT23F)), big.mark = ","))
 

@@ -30,27 +30,9 @@ formula_apriori <- as.formula(
 )
 
 # =============================================================================
-# Extended covariate set (for sensitivity / fuller models)
-# =============================================================================
-# Adds health status and insurance type on top of the a priori set.
-# INSURC23 is included here as a covariate (not as a sample filter) to
-# adjust for insurance type heterogeneity within the privately-insured cohort.
-#
-#   INSURC23 — insurance coverage type (adjusts for plan-mix within cohort)
-#   RTHLTH53 — self-rated health (1=Excellent … 5=Poor); correlated with need
-
-covars_extended <- c(covars_apriori, "INSURC23", "RTHLTH53")
-
-formula_extended <- as.formula(
-  paste("~", paste(covars_extended, collapse = " + "))
-)
-
-# =============================================================================
-# Print covariate sets to console when sourced
+# Print covariate set to console when sourced
 # =============================================================================
 
-message("Covariate sets loaded:")
+message("Covariate set loaded:")
 message("  A priori  (", length(covars_apriori), "): ",
         paste(covars_apriori, collapse = ", "))
-message("  Extended  (", length(covars_extended), "): ",
-        paste(covars_extended, collapse = ", "))

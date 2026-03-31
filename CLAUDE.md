@@ -59,21 +59,14 @@ All estimates are **intention-to-treat** and likely attenuated toward null.
 - Visit-level data (HC-248B) does not have its own weights; use person weights at the
   person level, not at the visit level.
 
-## State identifier
-
-The public-use MEPS file may not include a state variable. `03_analysis.R` has a
-`scope` variable at the top. Set `scope <- "ma"` once you have the restricted-use
-file with `STATECD`. Massachusetts FIPS code = **25**.
-
 ## Scripts (run in order)
 
 ```
 R/00_setup.R            # Install + load packages (run once)
-R/config.R              # A priori covariate sets and model formulas (sourced by analysis scripts)
+R/config.R              # A priori covariate set and model formulas (sourced by analysis scripts)
 R/01_download_data.R    # Load HC-251 + HC-248B from local .ssp files → data/*.rds
-R/02_survey_design.R    # Build full / DLR survey designs → data/*.rds
+R/02_survey_design.R    # Build survey design objects → data/*.rds
 R/03_analysis.R         # Q1–Q3 estimates + adjusted models + Table 1 → output/
-                        #   scope = "national" (default) or "ma" (restricted-use)
 ```
 
 ## Data setup
@@ -84,14 +77,25 @@ Download .ssp files from AHRQ and place them in `data/`:
 
 Update filenames in `01_download_data.R` if yours differ.
 
-## Covariate sets (defined in config.R)
+## Switching between national and state-level data
 
-| Set | Variables | Use |
-|-----|-----------|-----|
-| `covars_apriori` | AGE23X, SEX, RACEV2X, POVCAT23, EMPST53 | Primary models |
-| `covars_extended` | above + INSURC23, RTHLTH53 | Sensitivity / fuller models |
+The pipeline is data-agnostic. To analyze a different population, swap the `.ssp`
+files in `data/` and re-run the scripts. The analysis code doesn't change.
 
-Access as formulas via `formula_apriori` and `formula_extended`. Attach an outcome with `update(formula_apriori, outcome ~ .)`.
+For state-level data (e.g., MA restricted-use file from AHRQ), the file will
+already contain only that state's respondents — no state-code filtering is needed.
+
+## Covariate set (defined in config.R)
+
+| Variable | Description |
+|----------|-------------|
+| `AGE23X` | Age (continuous) |
+| `SEX` | Sex |
+| `RACEV2X` | Race |
+| `POVCAT23` | Income as % of poverty line |
+| `EMPST53` | Employment status |
+
+Access as a formula via `formula_apriori`. Attach an outcome with `update(formula_apriori, outcome ~ .)`.
 
 ## Updating for 2024
 
@@ -101,6 +105,6 @@ When HC-252 (2024 FYC) is released:
 3. Stack 2023 + 2024 data and activate the DiD model structure (see scaffold in a future
    `04_did_models.R` script)
 
-## A priori minimal covariate set (per research design doc)
+## A priori covariate set (per research design doc)
 
-`AGE23X`, `SEX`, `RACEV2X`, `POVCAT23`, `INSURC23`, `RTHLTH53` + survey design variables.
+`AGE23X`, `SEX`, `RACEV2X`, `POVCAT23`, `EMPST53` + survey design variables.
