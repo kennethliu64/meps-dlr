@@ -62,8 +62,6 @@ message("  Cohort (", label, "): ",
         format(dlr_n, big.mark = ","), " unweighted | ",
         fmt_pop(dlr_weighted_n), " weighted")
 
-out_path <- function(filename) here("output", paste0(label, "_", filename))
-
 # =============================================================================
 # Q1 — Dental visit frequency
 # =============================================================================
@@ -73,7 +71,12 @@ message("\nQ1: Dental visit access and frequency...")
 f_any_visit <- as.formula(paste0("~I(as.numeric(", var_visits, " > 0))"))
 f_visits    <- as.formula(paste0("~", var_visits))
 
-q1_any   <- svymean(f_any_visit, design = design_analysis, na.rm = TRUE)
+# For the "any visit" proportion use svyciprop() with the logit transform:
+# Wald CIs on proportions near 0 or 1 can extend outside [0, 1]; the logit
+# transform keeps bounds in range and has better small-sample coverage.
+# Point estimate (coef()) is unchanged vs svymean(); only CIs differ.
+q1_any   <- svyciprop(f_any_visit, design = design_analysis,
+                      method = "logit", na.rm = TRUE)
 q1_mean  <- svymean(f_visits,    design = design_analysis, na.rm = TRUE)
 q1_total <- svytotal(f_visits,   design = design_analysis, na.rm = TRUE)
 
@@ -82,7 +85,9 @@ message("  Weighted prob any visit: ", round(coef(q1_any), 3),
 message("  Weighted mean visits:    ", round(coef(q1_mean), 3),
         " (SE: ", round(SE(q1_mean), 3), ")")
 
-q1_ci_any   <- confint(q1_any)
+# svyciprop attaches CIs as an attribute on the result vector; svymean/svytotal
+# don't, so we still use confint() for them.
+q1_ci_any   <- attr(q1_any, "ci")
 q1_ci_mean  <- confint(q1_mean)
 q1_ci_total <- confint(q1_total)
 
@@ -90,8 +95,8 @@ q1_out <- tibble(
   metric   = c("prob_any_visit", "mean_visits", "total_visits"),
   estimate = c(coef(q1_any),       coef(q1_mean),       coef(q1_total)),
   se       = c(SE(q1_any),         SE(q1_mean),         SE(q1_total)),
-  ci_lower = c(q1_ci_any[, 1],     q1_ci_mean[, 1],     q1_ci_total[, 1]),
-  ci_upper = c(q1_ci_any[, 2],     q1_ci_mean[, 2],     q1_ci_total[, 2])
+  ci_lower = c(q1_ci_any[1],       q1_ci_mean[, 1],     q1_ci_total[, 1]),
+  ci_upper = c(q1_ci_any[2],       q1_ci_mean[, 2],     q1_ci_total[, 2])
 )
 write_csv(q1_out, out_path("q1_visits.csv"))
 message("  Saved: ", out_path("q1_visits.csv"))
@@ -127,12 +132,6 @@ message("  Saved: ", out_path("q2_spending.csv"))
 
 message("\nQ3: Dental service mix...")
 
-procedure_vars <- c(
-  "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
-  "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
-  "BRIDGESX", "DENTPROX", "DENTOTHX", "ORTHDONX"
-)
-
 existing_proc_vars <- intersect(procedure_vars, names(dv_raw))
 
 if (length(existing_proc_vars) == 0) {
@@ -155,35 +154,34 @@ dv_person <- dv_raw |>
     .groups = "drop"
   )
 
-# Merge onto the FULL person-level frame (from design_full), then subset.
-# IMPORTANT: svydesign() must be built from the complete sample so that all
-# strata/PSU combinations are present for correct variance estimation.
-# Merging onto the filtered analytic frame would silently discard strata,
-# breaking SEs — the same anti-pattern as filtering before svydesign().
-fyc_q3 <- design_full$variables |>
+# Inject procedure flags into design_full's underlying frame and subset to
+# the DLR cohort. Reusing the existing design object avoids re-running the
+# Taylor/BRR construction (expensive under BRR, which materializes 64
+# replicate weights). Row order of design_full$variables is preserved by
+# left_join on the left.
+#   AHRQ [AHRQ-SE]: merging must happen onto the full sample so strata/PSU
+#   structure remains intact. See R/REFERENCES.md + MR26 [MEPS-MR26].
+design_q3 <- design_full
+design_q3$variables <- design_q3$variables |>
   left_join(dv_person, by = "DUPERSID") |>
-  mutate(across(all_of(existing_proc_vars),
-                ~ replace_na(.x, 0L)))  # persons with no dental visits → 0
-
-weight_formula <- as.formula(paste0("~", var_weight))
-
-design_q3 <- svydesign(
-  id      = ~VARPSU,
-  strata  = ~VARSTR,
-  weights = weight_formula,
-  data    = fyc_q3,
-  nest    = TRUE
-)
+  mutate(across(all_of(existing_proc_vars), ~ replace_na(.x, 0L)))
 design_q3 <- subset(design_q3,
                     eval(parse(text = paste0(var_dntins1, " == 1 | ", var_dntins2, " == 1"))))
 
-svy_formula_q3 <- as.formula(paste("~", paste(existing_proc_vars, collapse = " + ")))
-q3_means <- svymean(svy_formula_q3, design = design_q3, na.rm = TRUE)
+# Per-procedure svyciprop with logit method keeps CIs bounded in [0, 1]
+# even for rare procedures (implants, orthodontics) [AHRQ-SE].
+q3_means_list <- lapply(existing_proc_vars, function(v) {
+  svyciprop(as.formula(paste0("~I(as.numeric(", v, " > 0))")),
+            design = design_q3, method = "logit", na.rm = TRUE)
+})
+names(q3_means_list) <- existing_proc_vars
 
 service_props <- tibble(
-  procedure  = names(coef(q3_means)),
-  proportion = coef(q3_means),
-  se         = SE(q3_means)
+  procedure  = existing_proc_vars,
+  proportion = vapply(q3_means_list, function(x) as.numeric(coef(x)), numeric(1)),
+  se         = vapply(q3_means_list, function(x) as.numeric(SE(x)),   numeric(1)),
+  ci_lower   = vapply(q3_means_list, function(x) attr(x, "ci")[1],    numeric(1)),
+  ci_upper   = vapply(q3_means_list, function(x) attr(x, "ci")[2],    numeric(1))
 ) |>
   mutate(procedure = factor(procedure, levels = existing_proc_vars)) |>
   arrange(desc(proportion))
@@ -193,23 +191,7 @@ write_csv(service_props, out_path("q3_service_mix.csv"))
 message("  Saved: ", out_path("q3_service_mix.csv"))
 
 # ---- Bar chart of service mix -----------------------------------------------
-
-service_labels <- c(
-  EXAMINEX = "Examination",
-  JUSTXRYX = "X-ray",
-  CLENTETX = "Cleaning",
-  FLUORIDX = "Fluoride",
-  SEALANTX = "Sealant",
-  FILLINGX = "Filling",
-  ROOTCANX = "Root canal",
-  GUMSURGX = "Gum surgery",
-  ORALSURX = "Oral surgery/extraction",
-  IMPLANTX = "Implant",
-  BRIDGESX = "Bridge",
-  DENTPROX = "Dental prosthesis",
-  DENTOTHX = "Other dental",
-  ORTHDONX = "Orthodontics"
-)
+# service_labels is defined in config.R
 
 p_mix <- service_props |>
   mutate(proc_label = service_labels[as.character(procedure)]) |>
@@ -269,27 +251,73 @@ fit_q2b    <- svyglm(update(formula_apriori, f_q2b),
 fit_q2c    <- svyglm(update(formula_apriori, f_q2c),
                      design = design_analysis, family = gaussian())
 
+# Two-part spending models [Belotti-15]: part 1 = logit on I(y > 0),
+# part 2 = Gamma log-link GLM on positive-spending subpopulation. Fit
+# alongside the log(y+1) Gaussian models above.
+f_q2a_p1 <- as.formula(paste0("I(", var_totexp, " > 0) ~ ."))
+f_q2b_p1 <- as.formula(paste0("I(", var_oopexp, " > 0) ~ ."))
+f_q2c_p1 <- as.formula(paste0("I(", var_prvexp, " > 0) ~ ."))
+
+f_q2a_p2 <- as.formula(paste0(var_totexp, " ~ ."))
+f_q2b_p2 <- as.formula(paste0(var_oopexp, " ~ ."))
+f_q2c_p2 <- as.formula(paste0(var_prvexp, " ~ ."))
+
+design_totexp_pos <- subset(design_analysis, get(var_totexp) > 0)
+design_oopexp_pos <- subset(design_analysis, get(var_oopexp) > 0)
+design_prvexp_pos <- subset(design_analysis, get(var_prvexp) > 0)
+
+fit_q2a_p1 <- svyglm(update(formula_apriori, f_q2a_p1),
+                     design = design_analysis, family = quasibinomial())
+fit_q2a_p2 <- svyglm(update(formula_apriori, f_q2a_p2),
+                     design = design_totexp_pos, family = Gamma(link = "log"))
+
+fit_q2b_p1 <- svyglm(update(formula_apriori, f_q2b_p1),
+                     design = design_analysis, family = quasibinomial())
+fit_q2b_p2 <- svyglm(update(formula_apriori, f_q2b_p2),
+                     design = design_oopexp_pos, family = Gamma(link = "log"))
+
+fit_q2c_p1 <- svyglm(update(formula_apriori, f_q2c_p1),
+                     design = design_analysis, family = quasibinomial())
+fit_q2c_p2 <- svyglm(update(formula_apriori, f_q2c_p2),
+                     design = design_prvexp_pos, family = Gamma(link = "log"))
+
 tbl_models <- tbl_merge(
   list(
     tbl_regression(fit_q1_any, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
     tbl_regression(fit_q1,     exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
     tbl_regression(fit_q2a,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2a_p1, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2a_p2, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
     tbl_regression(fit_q2b,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3)),
-    tbl_regression(fit_q2c,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3))
+    tbl_regression(fit_q2b_p1, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2b_p2, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2c,    exponentiate = FALSE, pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2c_p1, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3)),
+    tbl_regression(fit_q2c_p2, exponentiate = TRUE,  pvalue_fun = label_style_pvalue(digits = 3))
   ),
   tab_spanner = c(
     "**Any visit** (OR)",
     "**Visit count** (IRR)",
-    "**Total expenditure** (log \u03b2)",
-    "**Out-of-pocket spend** (log \u03b2)",
-    "**Insurer payout** (log \u03b2)"
+    "**Total exp** log(y+1) (\u03b2)",
+    "**Total exp** 2P part 1 (OR)",
+    "**Total exp** 2P part 2 (exp \u03b2)",
+    "**OOP** log(y+1) (\u03b2)",
+    "**OOP** 2P part 1 (OR)",
+    "**OOP** 2P part 2 (exp \u03b2)",
+    "**Insurer** log(y+1) (\u03b2)",
+    "**Insurer** 2P part 1 (OR)",
+    "**Insurer** 2P part 2 (exp \u03b2)"
   )
 ) |>
   modify_caption(paste0("**Covariate-adjusted models \u2014 ", label, "**")) |>
   modify_footnote(everything() ~ paste0(
     "OR = odds ratio (quasibinomial); IRR = incidence rate ratio (quasipoisson); ",
-    "log \u03b2 = coefficient on log(y+1) scale (gaussian) \u2014 reflects direction and relative ",
-    "magnitude of association but cannot be converted to dollar amounts directly. ",
+    "log \u03b2 on log(y+1) = coefficient on log-transformed spending (gaussian) \u2014 ",
+    "reflects direction and relative magnitude; cannot be converted to dollars without a ",
+    "Duan smearing correction [Manning-98]. Two-part (2P) models [Belotti-15] decompose ",
+    "spending into part 1 (any spending, logit) and part 2 (amount among spenders, ",
+    "Gamma GLM with log link). Part-2 coefficients are exponentiated so a value of 1.10 ",
+    "means ~10% higher spending among spenders, holding other covariates fixed. ",
     "Reference categories: Male, White, Poor, Employed. ",
     "All models survey-weighted (MEPS complex design). ",
     dlr_n_label, "."
@@ -307,8 +335,6 @@ message("  Saved: ", out_path("models.html"))
 
 message("\nBuilding formatted descriptive results...")
 
-q3_ci <- confint(q3_means)
-
 q1_gt <- tibble(
   Metric = c("Any dental visit", "Mean visits per person", "Total visits (population)"),
   Estimate = c(
@@ -317,7 +343,7 @@ q1_gt <- tibble(
     scales::comma(round(            coef(q1_total)))
   ),
   `95% CI` = c(
-    paste0(scales::percent(q1_ci_any[, 1],   0.1), "\u2013", scales::percent(q1_ci_any[, 2],   0.1)),
+    paste0(scales::percent(q1_ci_any[1],     0.1), "\u2013", scales::percent(q1_ci_any[2],     0.1)),
     paste0(sprintf("%.2f", q1_ci_mean[, 1]),  "\u2013", sprintf("%.2f", q1_ci_mean[, 2])),
     paste0(scales::comma(round(q1_ci_total[, 1])), "\u2013", scales::comma(round(q1_ci_total[, 2])))
   )
@@ -349,15 +375,16 @@ q3_gt <- service_props |>
     Procedure  = service_labels[as.character(procedure)],
     Prevalence = scales::percent(proportion, accuracy = 0.1),
     `95% CI`   = paste0(
-      scales::percent(pmax(0, q3_ci[as.character(procedure), 1]), 0.1), "\u2013",
-      scales::percent(q3_ci[as.character(procedure), 2], 0.1)
+      scales::percent(ci_lower, 0.1), "\u2013",
+      scales::percent(ci_upper, 0.1)
     )
   ) |>
   select(Procedure, Prevalence, `95% CI`) |>
   gt() |>
   tab_header(title = "Q3: Dental service mix") |>
   tab_source_note(paste0(
-    "Person-level weighted prevalence: proportion of DLR cohort with any visit of each type. ",
+    "Person-level weighted prevalence (logit-transformed 95% CIs): ",
+    "proportion of DLR cohort with any visit of each type. ",
     dlr_n_label, "."
   ))
 

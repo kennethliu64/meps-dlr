@@ -24,20 +24,14 @@ out_dir <- here::here("output")
 # =============================================================================
 # 1. Read and harmonize the three per-year CSVs
 # =============================================================================
-# The three CSVs have different column schemas by design:
+# The three CSVs share a common schema:
 #   Q1: metric / estimate / se / ci_lower / ci_upper
 #   Q2: outcome / mean / se / ci_lower / ci_upper
-#   Q3: procedure / proportion / se        (no pre-computed CI)
-# This step renames columns to a common schema and, for Q3, computes Wald
-# 95% CIs from SE to match what survey::confint.svystat() produces internally.
-
-q3_wald_ci <- function(est, se) {
-  z <- stats::qnorm(0.975)
-  list(
-    lower = pmax(0, est - z * se),
-    upper = pmin(1, est + z * se)
-  )
-}
+#   Q3: procedure / proportion / se / ci_lower / ci_upper
+# (Q3 CIs are logit-transformed [0,1]-bounded as of the stats review — see
+# R/REFERENCES.md [AHRQ-SE] for the rationale; bounded CIs are preferred over
+# Wald for proportions near the boundary.) This step renames columns to a
+# common schema before concatenation.
 
 read_q1 <- function(y) {
   path <- file.path(out_dir, paste0("dlr_", y, "_q1_visits.csv"))
@@ -69,17 +63,14 @@ read_q2 <- function(y) {
 read_q3 <- function(y) {
   path <- file.path(out_dir, paste0("dlr_", y, "_q3_service_mix.csv"))
   if (!file.exists(path)) return(NULL)
-  df <- read_csv(path, show_col_types = FALSE)
-  ci <- q3_wald_ci(df$proportion, df$se)
-  tibble(
-    year     = as.integer(y),
-    question = "Q3. Service mix",
-    metric   = as.character(df$procedure),
-    estimate = df$proportion,
-    se       = df$se,
-    ci_lower = ci$lower,
-    ci_upper = ci$upper
-  )
+  read_csv(path, show_col_types = FALSE) |>
+    transmute(
+      year     = as.integer(y),
+      question = "Q3. Service mix",
+      metric   = as.character(procedure),
+      estimate = proportion,
+      se, ci_lower, ci_upper
+    )
 }
 
 long <- bind_rows(
@@ -217,8 +208,9 @@ tbl <- wide |>
   ) |>
   tab_source_note(md(paste0(
     "Survey-weighted estimates from MEPS Full-Year Consolidated + Dental Visits files. ",
-    "Q3 CIs are Wald (estimate \u00b1 1.96\u00b7SE), matching ",
-    "`survey::confint.svystat()`. Q2 expenditures are dollars per person per year."
+    "Q1 'any visit' and all Q3 CIs are logit-transformed (bounded in [0, 1]); ",
+    "Q1 visit counts and Q2 dollars use Wald CIs (survey default). ",
+    "Q2 expenditures are dollars per person per year."
   ))) |>
   sub_missing(missing_text = "\u2014") |>
   tab_options(table.font.size = 12, data_row.padding = px(4))

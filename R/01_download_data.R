@@ -72,9 +72,71 @@ if (length(missing_dntins) > 0) {
 }
 message("  All required variables present.")
 
+# ---- State identifier (required for synthetic control, see R/REFERENCES.md) -
+# Public-use MEPS does NOT include a state column. Synthetic control
+# requires restricted-use data. When the column is missing, dev-mode can
+# inject deterministic pseudo-states so the SC pipeline can be smoke-tested
+# end-to-end (outputs get a "_dev" label suffix and are clearly marked).
+
+if (state_col %in% names(fyc_raw)) {
+  fyc_raw[[state_col]] <- as.character(fyc_raw[[state_col]])
+  message("  State column `", state_col, "` found: ",
+          length(unique(fyc_raw[[state_col]])), " unique values.")
+} else if (isTRUE(dev_inject_states)) {
+  warning(
+    "DEV MODE: `", state_col, "` not found in FYC. Injecting 20 pseudo-states ",
+    "deterministically from DUPERSID. These are NOT real states — SC output ",
+    "is for smoke-testing only. Outputs will be labeled with `_dev` suffix."
+  )
+  fake_states <- c("MA", paste0("ST", sprintf("%02d", 2:20)))
+  state_idx <- vapply(as.character(fyc_raw$DUPERSID), function(x) {
+    (digest::digest2int(x, seed = 0L) %% 20L) + 1L
+  }, integer(1))
+  fyc_raw[[state_col]] <- fake_states[state_idx]
+  message("  Injected pseudo-state distribution:")
+  print(table(fyc_raw[[state_col]]))
+} else {
+  stop(
+    "State column `", state_col, "` not found in FYC and dev_inject_states is ",
+    "FALSE. Synthetic control needs restricted-use MEPS data with a state ",
+    "identifier. To smoke-test the pipeline without real state data, set ",
+    "dev_inject_states <- TRUE in run_all.R. For restricted-use access see ",
+    "https://meps.ahrq.gov/data_stats/onsite_datacenter.jsp"
+  )
+}
+
 # ---- Save ------------------------------------------------------------------
 saveRDS(fyc_raw, fyc_rds)
 message("  Saved: ", fyc_rds)
+
+# =============================================================================
+# 1b. (Optional) HC-036BRR replicate weights — only when variance_method = BRR
+# =============================================================================
+# AHRQ's supplementary file providing balanced-repeated-replication weights.
+# Merge on DUPERSID in 02_survey_design.R to build an svrepdesign().
+# See R/REFERENCES.md [AHRQ-BRR].
+
+if (identical(variance_method, "BRR")) {
+  if (is.null(brr_file) || is.na(brr_file) || brr_file == "") {
+    stop("variance_method = \"BRR\" but no brr_file set for year ", year,
+         ". Add an entry to `brr_files` in run_all.R or switch to Taylor.")
+  }
+  brr_path <- here("data", brr_file)
+  if (!file.exists(brr_path)) {
+    stop("BRR file not found: ", brr_path,
+         "\nDownload HC-036BRR from AHRQ and place the .dta in data/.")
+  }
+  message("\nLoading ", brr_file, " (HC-036BRR replicate weights)...")
+  brr_raw <- haven::read_dta(brr_path)
+  names(brr_raw) <- toupper(names(brr_raw))
+  brr_raw <- haven::zap_labels(brr_raw)
+  message("  Rows: ", nrow(brr_raw), " | Cols: ", ncol(brr_raw))
+  if (!"DUPERSID" %in% names(brr_raw)) {
+    stop("BRR file has no DUPERSID column — cannot merge.")
+  }
+  saveRDS(brr_raw, brr_rds)
+  message("  Saved: ", brr_rds)
+}
 
 # =============================================================================
 # 2. Dental Visits Event-Level File
@@ -95,14 +157,8 @@ dv_raw <- haven::zap_labels(dv_raw)
 
 # ---- Check for procedure-type variables ------------------------------------
 
-procedure_vars <- c(
-  "DUPERSID",
-  "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
-  "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
-  "BRIDGESX", "DENTPROX", "DENTOTHX", "ORTHDONX"
-)
-
-missing_dv <- setdiff(procedure_vars, names(dv_raw))
+required_dv_vars <- c("DUPERSID", procedure_vars)
+missing_dv <- setdiff(required_dv_vars, names(dv_raw))
 if (length(missing_dv) > 0) {
   warning(
     "Some procedure variables not found in dental visits file: ",
@@ -111,7 +167,7 @@ if (length(missing_dv) > 0) {
   )
 }
 message("  Procedure variables found: ",
-        length(intersect(procedure_vars, names(dv_raw))), " / ", length(procedure_vars))
+        length(intersect(required_dv_vars, names(dv_raw))), " / ", length(required_dv_vars))
 
 saveRDS(dv_raw, dv_rds)
 message("  Saved: ", dv_rds)

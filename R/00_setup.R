@@ -16,7 +16,9 @@ required_packages <- c(
   "gt",          # Underlying table engine; needed for gt::gtsave()
   "broom",       # Tidy coefficient tables from model objects
   "labelled",    # Work with variable labels from MEPS imports
-  "here"         # Reproducible, project-relative file paths
+  "here",        # Reproducible, project-relative file paths
+  "Synth",       # Synthetic control (Abadie-Diamond-Hainmueller)
+  "digest"       # Deterministic hashing for dev-mode state injection
 )
 
 newly_installed <- required_packages[
@@ -35,8 +37,13 @@ invisible(lapply(required_packages, function(pkg) {
 }))
 
 # MEPS has strata with a single PSU ("lonely PSUs"). The 'adjust' method
-# centers the contribution around the grand mean, which is AHRQ's recommended
-# approach and avoids errors during variance estimation in subpopulations.
+# centers the contribution around the grand mean and is the R-survey analog
+# of SUDAAN's MISSUNIT option, which AHRQ describes as estimating the
+# contribution "using the difference in that unit's value and the overall
+# mean value of the population." Avoids errors during variance estimation
+# in subpopulations.
+#   AHRQ, Computing Standard Errors for MEPS Estimates (Machlin, Yu, Zodet,
+#   Jan 2005). See R/REFERENCES.md.
 options(survey.lonely.psu = "adjust")
 
 dir.create(here::here("data"),   showWarnings = FALSE)
