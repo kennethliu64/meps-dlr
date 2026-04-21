@@ -22,6 +22,21 @@ if (!exists("dv_file"))  dv_file  <- "h248b.dta"
 yr <- year %% 100L  # two-digit suffix used in MEPS variable names (e.g. 23)
 
 # =============================================================================
+# Fallback defaults for user-facing settings
+# =============================================================================
+# Every user-facing knob is set in run_all.R. These exists()-gated fallbacks
+# only trigger when a script is sourced standalone (e.g., someone runs
+# source("R/03_analysis.R") directly). The user never needs to edit this file.
+
+if (!exists("variance_method"))   variance_method   <- "Taylor"   # or "BRR"
+if (!exists("brr_file"))          brr_file          <- NA_character_  # per-year override
+if (!exists("state_col"))         state_col         <- "STATE"
+if (!exists("treated_state"))     treated_state     <- "MA"
+if (!exists("dev_inject_states")) dev_inject_states <- FALSE
+if (!exists("post_period_start")) post_period_start <- 2024L
+if (!exists("synth_outcomes"))    synth_outcomes    <- c("DVTOT", "DVTEXP")
+
+# =============================================================================
 # Year-specific variable names
 # =============================================================================
 # MEPS appends a two-digit year suffix to most person-level variables.
@@ -54,6 +69,7 @@ fyc_rds         <- here::here("data", paste0("fyc_",         year, ".rds"))
 dv_rds          <- here::here("data", paste0("dv_",          year, ".rds"))
 design_full_rds <- here::here("data", paste0("design_full_", year, ".rds"))
 design_dlr_rds  <- here::here("data", paste0("design_dlr_",  year, ".rds"))
+brr_rds         <- here::here("data", paste0("brr_",         year, ".rds"))
 
 # =============================================================================
 # A priori covariate set
@@ -75,13 +91,48 @@ covars_apriori <- c(var_age, "SEX", "RACEV2X", var_povcat, "EMPST53")
 formula_apriori <- reformulate(covars_apriori)
 
 # =============================================================================
-# Analysis label (used as output file prefix)
+# Analysis label + output path helpers
 # =============================================================================
+# `dev_suffix()` returns "_dev" when running against injected pseudo-states so
+# dev-mode outputs can never be confused with real-state outputs.
+# `out_path()` builds a consistent prefixed path under output/. Defined here
+# so every script (03_analysis.R, state_panel.R, stack_state_panel.R,
+# synth_analysis.R) uses the same convention.
 
-# Always derive from year so re-running with a different year doesn't carry
-# over a stale label from the previous session state.
-# Set label_override in run_all.R to use a custom prefix instead.
-label <- if (exists("label_override")) label_override else paste0("dlr_", year)
+dev_suffix <- function() if (isTRUE(dev_inject_states)) "_dev" else ""
+
+label <- if (exists("label_override")) label_override else paste0("dlr_", year, dev_suffix())
+
+out_path <- function(filename) here::here("output", paste0(label, "_", filename))
+
+# =============================================================================
+# Dental procedure variable list + display labels
+# =============================================================================
+# Referenced by 01_download_data.R (for validation), 03_analysis.R (Q3), and
+# 04_compare_years.R (for the metric_labels map).
+
+procedure_vars <- c(
+  "EXAMINEX", "JUSTXRYX", "CLENTETX", "FLUORIDX", "SEALANTX",
+  "FILLINGX", "ROOTCANX", "GUMSURGX", "ORALSURX", "IMPLANTX",
+  "BRIDGESX", "DENTPROX", "DENTOTHX", "ORTHDONX"
+)
+
+service_labels <- c(
+  EXAMINEX = "Examination",
+  JUSTXRYX = "X-ray",
+  CLENTETX = "Cleaning",
+  FLUORIDX = "Fluoride",
+  SEALANTX = "Sealant",
+  FILLINGX = "Filling",
+  ROOTCANX = "Root canal",
+  GUMSURGX = "Gum surgery",
+  ORALSURX = "Oral surgery/extraction",
+  IMPLANTX = "Implant",
+  BRIDGESX = "Bridge",
+  DENTPROX = "Dental prosthesis",
+  DENTOTHX = "Other dental",
+  ORTHDONX = "Orthodontics"
+)
 
 # =============================================================================
 # Print config to console when sourced
